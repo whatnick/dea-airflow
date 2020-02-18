@@ -67,7 +67,7 @@ sync_command = """
   --update-locations --index-missing ${syncpath}"
 """
 
-def make_sync_task(product, ):
+def make_sync_task(product):
 
     submit_sync = SSHOperator(
         task_id='submit_sync',
@@ -79,7 +79,8 @@ def make_sync_task(product, ):
                 'base_path': '/g/data/rs0/scenes/nbar-scenes-tmp/ls8/2019/12/output/nbar',
                 'base_path': '/g/data/rs0/scenes/nbar-scenes-tmp/ls8/2019/12/output/nbart',
                 'types': ['nbar-scenes-tmp/  pq-legacy-scenes-tmp/  pq-scenes-tmp/  pq-wofs_scenes-tmp/']
-                }
+                },
+        do_xcom_push=True,
     )
     return submit_sync
 
