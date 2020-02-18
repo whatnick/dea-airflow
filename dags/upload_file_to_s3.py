@@ -1,6 +1,8 @@
 from airflow import DAG
-from airflow.operators import DummyOperator, PythonOperator
+from airflow.operators.python_operator import PythonOperator
+from airflow.operators.dummy_operator import DummyOperator
 import airflow.hooks.S3_hook
+from datetime import timedelta, datetime
 
 default_args = {
     'owner': 'damien',
@@ -27,8 +29,7 @@ with DAG('S3_dag_test', default_args=default_args, schedule_interval='@once') as
             'filename': 'path/to/my_file.csv',
             'key': 'my_S3_file.csv',
             'bucket_name': 'my-S3-bucket',
-        },
-        dag=my_dag)
+        })
 
     # Use arrows to set dependencies between tasks
     start_task >> upload_to_S3_task

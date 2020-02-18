@@ -1,8 +1,9 @@
-
 from datetime import timedelta
 from airflow import DAG
 from airflow.contrib.operators.ssh_operator import SSHOperator
-from airflow.operators import DummyOperator, PythonOperator
+from airflow.operators.dummy_operator import DummyOperator
+from airflow.operators.python_operator import PythonOperator
+from airflow.operators.bash_operator import BashOperator
 from airflow.contrib.hooks.ssh_hook import SSHHook
 from airflow.utils.dates import days_ago
 
@@ -15,9 +16,9 @@ default_args = {
 }
 
 dag = DAG(
-   'testing_ssh_qstat',
-   default_args=default_args,
-   schedule_interval=timedelta(days=1)
+    'testing_ssh_qstat',
+    default_args=default_args,
+    schedule_interval=timedelta(days=1)
 )
 
 # TODO: This could filter out jobs completed outside this period
@@ -28,7 +29,17 @@ t1 = SSHOperator(
     ssh_conn_id='lpgs-nci',
     dag=dag)
 
+example_bash_task = BashOperator(
+    task_id='example_bash_task',
+    bash_command='echo {{ task_instance.xcom_pull(task_ids="get_files") }}',
+)
+
+
+def my_python_callable(*args, **kwargs):
+    print('foo')
+
+
 put_into_postgres = PythonOperator(
     task_id="save_qstat_to_postgres",
-    bash_command='echo {{ task_instance.xcom_pull(task_ids="get_files") }}',
+    python_callable=my_python_callable
 )
