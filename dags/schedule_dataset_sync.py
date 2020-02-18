@@ -107,9 +107,9 @@ PATHS_TO_PROCESS+=("$BASE_PATH$year$SUFFIX_PATH")
 
     # TODO Implement an SSH Sensor to wait for the submitted job to be done
     # t1, t2 and t3 are examples of tasks created by instantiating operators
-    t1 = BashOperator(
-        task_id='print_date',
+    wait_for_pbs = BashOperator(
+        task_id='wait_for_pbs',
         bash_command='date',
         dag=dag)
 
-    submit_sync >> get_qstat_output >> t1
+    submit_sync >> wait_for_pbs
