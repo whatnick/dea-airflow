@@ -1,5 +1,5 @@
 import os.path
-from StringIO import StringIO
+from io import StringIO
 
 from airflow import AirflowException
 from airflow.contrib.hooks.ssh_hook import SSHHook
@@ -48,7 +48,7 @@ class TemplateToSFTPOperator(BaseOperator):
                  create_intermediate_dirs=True,
                  *args,
                  **kwargs):
-        super(TemplateToSFTPOperator, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         self.ssh_hook = ssh_hook
         self.ssh_conn_id = ssh_conn_id
         self.file_mode = file_mode
