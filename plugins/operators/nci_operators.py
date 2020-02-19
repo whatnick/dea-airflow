@@ -31,7 +31,7 @@ class TemplateToSFTPOperator(BaseOperator):
         `ssh_conn_id` will be ignored if `ssh_hook` is provided.
     :param bool create_intermediate_dirs: create missing intermediate directories when
         copying from remote to local and vice-versa. Default is False.
-    :param int file_mode: permissions to set on the remote file
+    :param int file_mode: permissions to set on the remote file. eg 0o644 or 0o755
     :param file_contents: contents to upload into the file (templated)
     :param remote_filepath: remote file path to get or put. (templated)
     """

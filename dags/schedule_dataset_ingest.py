@@ -1,6 +1,5 @@
 from airflow import DAG
 from airflow.contrib.operators.ssh_operator import SSHOperator
-from airflow.operators.bash_operator import BashOperator
 from airflow.operators.dummy_operator import DummyOperator
 from datetime import datetime, timedelta
 
@@ -11,7 +10,7 @@ ingest_products = {
 }
 default_args = {
     'owner': 'Damien Ayers',
-    'depends_on_past': False,
+    'depends_on_past': True,
     'start_date': datetime(2020, 2, 1),
     'email': ['damien.ayers@ga.gov.au'],
     'email_on_failure': False,
