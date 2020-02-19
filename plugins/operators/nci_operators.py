@@ -92,23 +92,3 @@ class TemplateToSFTPOperator(BaseOperator):
         return self.remote_filepath
 
 
-class PBSJobSensor(BaseSensorOperator):
-
-    @apply_defaults
-    def __init__(self, ssh_hook, pbs_job_id, xcom_task_id_key, *args, **kwargs):
-        super(PBSJobSensor).__init__(*args, **kwargs)
-        self.hook = ssh_hook
-
-        if pbs_job_id is not None:
-            self.job_id = pbs_job_id
-        else:
-            task_instance = context['task_instance']
-            self.job_id = task_instance.xcom_pull(xcom_task_id_key)
-
-    def poke(self, context):
-        pass
-
-
-class NCIPlugin(AirflowPlugin):
-    name = "nci_plugin"
-    operators = [PBSJobSensor]
