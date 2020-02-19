@@ -7,7 +7,7 @@ from airflow.operators.bash_operator import BashOperator
 from airflow.contrib.hooks.ssh_hook import SSHHook
 from airflow.utils.dates import days_ago
 
-sshHook = SSHHook(ssh_conn_id='lpgs_nci')
+sshHook = SSHHook(ssh_conn_id='lpgs_gadi')
 
 default_args = {
     'owner': 'damien',
@@ -26,7 +26,7 @@ t1 = SSHOperator(
     task_id="task1",
     command='qstat -x -f -F json',
     # ssh_hook=sshHook,
-    ssh_conn_id='lpgs-nci',
+    ssh_conn_id='lpgs_gadi',
     dag=dag)
 
 example_bash_task = BashOperator(
