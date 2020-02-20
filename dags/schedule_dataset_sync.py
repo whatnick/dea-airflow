@@ -80,17 +80,18 @@ default_args = {
     'email_on_retry': False,
     'retries': 0,
     'retry_delay': timedelta(minutes=5),
+    'timeout': 90,  # For running SSH Commands
     'params': {
         'project': 'v10',
         'queue': 'normal',
         'module': 'dea/unstable',
-        'year': '2019'
+        'year': '2020'
     }
 }
 with DAG('schedule_dataset_sync_orchestration',
          default_args=default_args,
          catchup=False,
-         schedule_interval="@daily",
+         schedule_interval="@weekly",
          template_searchpath='templates/'
          ) as dag:
     for product in synced_products:

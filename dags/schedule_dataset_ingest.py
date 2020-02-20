@@ -16,20 +16,20 @@ default_args = {
     'email_on_failure': False,
     'email_on_retry': False,
     'retries': 3,
-    'retry_delay': timedelta(minutes=1),
+    'retry_delay': timedelta(minutes=5),
     'timeout': 90,  # For running SSH Commands
     'params': {
         'project': 'v10',
         'queue': 'normal',
         'module': 'dea/unstable',
-        'year': '2019'
+        'year': '2020'
     }
 }
 ingest_dag = DAG(
     'schedule_dataset_ingest',
     default_args=default_args,
     catchup=False,
-    schedule_interval="@daily",
+    schedule_interval="@weekly",
     template_searchpath='templates/'
 )
 
