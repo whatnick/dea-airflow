@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 
 default_args = {
     'owner': 'Damien Ayers',
-    'depends_on_past': True,
+    'depends_on_past': False,  # Very important, will cause a single failure to propagate forever
     'start_date': datetime(2020, 2, 17),
     'email': ['damien.ayers@ga.gov.au'],
     'email_on_failure': False,
@@ -41,7 +41,6 @@ with dag:
           --app-config ${APP_CONFIG} --tag ls_wofs
         
     """
-    completed = DummyOperator(task_id='submitted_to_pbs')
     wofs_task = SSHOperator(
         task_id=f'submit_wofs',
         ssh_conn_id='lpgs_gadi',
@@ -49,5 +48,6 @@ with dag:
         params={'product': 'wofs_albers'},
         do_xcom_push=True,
     )
+    completed = DummyOperator(task_id='submitted_to_pbs')
 
     start >> wofs_task >> completed
