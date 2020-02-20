@@ -7,19 +7,20 @@ from airflow.sensors.base_sensor_operator import BaseSensorOperator
 from airflow.contrib.operators.ssh_operator import SSHOperator
 from airflow.utils.decorators import apply_defaults
 
-class PBSJobSensor(BaseSensorOperator):
 
+class PBSJobSensor(BaseSensorOperator):
     template_fields = ('pbs_job_id',)
 
     @apply_defaults
     def __init__(self,
                  ssh_conn_id=None,
-            ssh_hook=None,
-            pbs_job_id=None,
-            xcom_task_id_key=None,
-            *args, **kwargs):
+                 ssh_hook=None,
+                 pbs_job_id=None,
+                 xcom_task_id_key=None,
+                 *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.hook = ssh_hook
+        self.ssh_conn_id = ssh_conn_id
 
         if pbs_job_id is not None:
             self.job_id = pbs_job_id
