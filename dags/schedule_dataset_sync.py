@@ -3,11 +3,14 @@ from airflow.contrib.operators.ssh_operator import SSHOperator
 from airflow.operators.bash_operator import BashOperator
 from datetime import datetime, timedelta
 
-synced_products = ['ls8_nbar_scene',
-                   'ls8_nbart_scene',
-                   'ls8_pq_scene',
-                   'ls8_pq_legacy_scene']
-unsynced = 'ls7_nbar_scene,ls7_nbart_scene,ls7_pq_scene,ls7_pq_legacy_scene'
+# synced_products = ['ls8_nbar_scene',
+#                    'ls8_nbart_scene',
+#                    'ls8_pq_scene',
+#                    'ls8_pq_legacy_scene']
+synced_products = ['ls7_nbar_scene,'
+                   'ls7_nbart_scene,'
+                   'ls7_pq_scene,'
+                   'ls7_pq_legacy_scene']
 
 SYNC_PREFIX_PATH = {
     'ls8_nbar_scene': '/g/data/rs0/scenes/nbar-scenes-tmp/ls8/',
@@ -65,12 +68,6 @@ def make_sync_task(product):
     return submit_sync
 
 
-ingest_products = {
-    'ls8_nbar_scene': 'ls8_nbar_albers',
-    'ls8_nbart_scene': 'ls8_nbart_albers',
-    'ls8_pq_scene': 'ls8_pq_albers'
-}
-
 default_args = {
     'owner': 'Damien Ayers',
     'depends_on_past': False,
@@ -85,7 +82,7 @@ default_args = {
         'project': 'v10',
         'queue': 'normal',
         'module': 'dea/unstable',
-        'year': '2020'
+        'year': '2019'
     }
 }
 with DAG('schedule_dataset_sync_orchestration',
@@ -97,32 +94,17 @@ with DAG('schedule_dataset_sync_orchestration',
     for product in synced_products:
         submit_sync = make_sync_task(product)
 
-        # get_qstat_output = SSHOperator(
-        #     task_id='get_qstat_output',
-        #     command='qstat -xf -F json',
-        #     do_xcom_push=True,
-        #     dag=dag
-        # )
+    # get_qstat_output = SSHOperator(
+    #     task_id='get_qstat_output',
+    #     command='qstat -xf -F json',
+    #     do_xcom_push=True,
+    #     dag=dag
+    # )
 
-        # TODO Implement an SSH Sensor to wait for the submitted job to be done
-        wait_for_pbs = BashOperator(
-            task_id=f'wait_for_pbs_sync_{product}',
-            bash_command='date',
-            dag=dag)
+    # TODO Implement an SSH Sensor to wait for the submitted job to be done
+    wait_for_pbs = BashOperator(
+        task_id=f'wait_for_pbs_sync_{product}',
+        bash_command='date',
+        dag=dag)
 
-        submit_sync >> wait_for_pbs
-
-        # if product in ingest_products:
-
-#####################################
-# Ingest
-#####################################
-
-INGEST = '''execute_ingest --dea-module ${self:provider.environment.DEA_MODULE}
---queue ${self: provider.environment.QUEUE}
---project ${self: provider.environment.PROJECT}
---stage ${self: custom.Stage}
---year % (year)
---product % (product)'''
-
-ls7_ingest = 'ls7_nbar_albers,ls7_nbart_albers,ls7_pq_albers'
+    submit_sync >> wait_for_pbs

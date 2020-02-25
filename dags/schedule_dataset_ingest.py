@@ -8,6 +8,7 @@ ingest_products = {
     'ls8_nbart_scene': 'ls8_nbart_albers',
     'ls8_pq_scene': 'ls8_pq_albers'
 }
+ls7_ingest = 'ls7_nbar_albers,ls7_nbart_albers,ls7_pq_albers'
 default_args = {
     'owner': 'Damien Ayers',
     'depends_on_past': True,

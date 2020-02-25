@@ -42,7 +42,9 @@ class PBSJobSensor(BaseSensorOperator):
                 raise AirflowException("Cannot operate without ssh_hook or ssh_conn_id.")
 
             with self.ssh_hook.get_conn() as ssh_client:
-        pass
+                pass
+        except Exception:
+            pass
 
 
 class PBSJobCompleteSensor(BaseSensorOperator):
