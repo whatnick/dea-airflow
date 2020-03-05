@@ -38,6 +38,7 @@ SYNC_COMMAND = """
   {% set work_dir = '/g/data/v10/work/sync/' + params.product + '/' + ds -%}
   {% set sync_cache_dir = work_dir + '/cache' -%}
   {% set sync_path = params.sync_prefix_path + params.year + params.sync_suffix_path -%}
+  
   mkdir -p {{ sync_cache_dir }};
   qsub -N sync_{{ params.product}}_{{ params.year }} \
   -q {{ params.queue }} \
@@ -54,14 +55,14 @@ SYNC_COMMAND = """
 """
 
 
-def make_sync_task(product):
+def make_sync_task(prod):
     submit_sync = SSHOperator(
-        task_id=f'submit_sync_{product}',
+        task_id=f'submit_sync_{prod}',
         ssh_conn_id='lpgs_gadi',
         command=SYNC_COMMAND,
-        params={'product': product,
-                'sync_prefix_path': SYNC_PREFIX_PATH[product],
-                'sync_suffix_path': SYNC_SUFFIX_PATH[product],
+        params={'product': prod,
+                'sync_prefix_path': SYNC_PREFIX_PATH[prod],
+                'sync_suffix_path': SYNC_SUFFIX_PATH[prod],
                 },
         do_xcom_push=True,
     )
@@ -85,6 +86,7 @@ default_args = {
         'year': '2019'
     }
 }
+
 with DAG('nci_dataset_sync',
          default_args=default_args,
          catchup=False,
