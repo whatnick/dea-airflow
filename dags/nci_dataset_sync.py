@@ -3,11 +3,11 @@ from airflow.contrib.operators.ssh_operator import SSHOperator
 from airflow.operators.bash_operator import BashOperator
 from datetime import datetime, timedelta
 
-# synced_products = ['ls8_nbar_scene',
-#                    'ls8_nbart_scene',
-#                    'ls8_pq_scene',
-#                    'ls8_pq_legacy_scene']
-synced_products = ['ls7_nbar_scene,'
+synced_products = ['ls8_nbar_scene',
+                   'ls8_nbart_scene',
+                   'ls8_pq_scene',
+                   'ls8_pq_legacy_scene',
+                   'ls7_nbar_scene,'
                    'ls7_nbart_scene,'
                    'ls7_pq_scene,'
                    'ls7_pq_legacy_scene']
@@ -71,7 +71,7 @@ def make_sync_task(product):
 default_args = {
     'owner': 'Damien Ayers',
     'depends_on_past': False,
-    'start_date': datetime(2020, 2, 1),
+    'start_date': datetime(2020, 3, 4),
     'email': ['damien.ayers@ga.gov.au'],
     'email_on_failure': False,
     'email_on_retry': False,
@@ -85,7 +85,7 @@ default_args = {
         'year': '2019'
     }
 }
-with DAG('schedule_dataset_sync_orchestration',
+with DAG('nci_dataset_sync',
          default_args=default_args,
          catchup=False,
          schedule_interval="@weekly",

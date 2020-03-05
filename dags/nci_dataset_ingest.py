@@ -11,8 +11,8 @@ ingest_products = {
 ls7_ingest = 'ls7_nbar_albers,ls7_nbart_albers,ls7_pq_albers'
 default_args = {
     'owner': 'Damien Ayers',
-    'depends_on_past': True,
-    'start_date': datetime(2020, 2, 1),
+    'depends_on_past': False,
+    'start_date': datetime(2020, 3, 4),
     'email': ['damien.ayers@ga.gov.au'],
     'email_on_failure': False,
     'email_on_retry': False,
@@ -27,7 +27,7 @@ default_args = {
     }
 }
 ingest_dag = DAG(
-    'schedule_dataset_ingest',
+    'nci_dataset_ingest',
     default_args=default_args,
     catchup=False,
     schedule_interval="@weekly",
