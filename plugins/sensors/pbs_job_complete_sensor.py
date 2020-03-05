@@ -4,71 +4,21 @@ from select import select
 from airflow import AirflowException
 from airflow.contrib.hooks.ssh_hook import SSHHook
 from airflow.sensors.base_sensor_operator import BaseSensorOperator
-from airflow.contrib.operators.ssh_operator import SSHOperator
 from airflow.utils.decorators import apply_defaults
 
 
-class PBSJobSensor(BaseSensorOperator):
-    template_fields = ('pbs_job_id',)
-
+class SSHRunMixin:
     @apply_defaults
     def __init__(self,
                  ssh_conn_id=None,
                  ssh_hook=None,
-                 pbs_job_id=None,
-                 xcom_task_id_key=None,
-                 *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.hook = ssh_hook
-        self.ssh_conn_id = ssh_conn_id
-
-        if pbs_job_id is not None:
-            self.job_id = pbs_job_id
-        else:
-            task_instance = context['task_instance']
-            self.job_id = task_instance.xcom_pull(xcom_task_id_key)
-
-    def poke(self, context):
-        try:
-            if self.ssh_conn_id:
-                if self.ssh_hook and isinstance(self.ssh_hook, SSHHook):
-                    self.log.info("ssh_conn_id is ignored when ssh_hook is provided.")
-                else:
-                    self.log.info("ssh_hook is not provided or invalid. " +
-                                  "Trying ssh_conn_id to create SSHHook.")
-                    self.ssh_hook = SSHHook(ssh_conn_id=self.ssh_conn_id)
-
-            if not self.ssh_hook:
-                raise AirflowException("Cannot operate without ssh_hook or ssh_conn_id.")
-
-            with self.ssh_hook.get_conn() as ssh_client:
-                pass
-        except Exception:
-            pass
-
-
-class PBSJobCompleteSensor(BaseSensorOperator):
-
-    @apply_defaults
-    def __init__(self,
-                 ssh_hook=None,
-                 ssh_conn_id=None,
-                 pbs_job_id=None,
-
                  *args,
                  **kwargs):
         super().__init__(*args, **kwargs)
-
         self.ssh_hook = ssh_hook
-        self.pbs_job_id = pbs_job_id
-
-        self.command = ''
         self.ssh_conn_id = ssh_conn_id
-        self.ssh_operator = SSHOperator(ssh_hook=ssh_hook,
-                                        ssh_conn_id=ssh_conn_id,
-                                        )
 
-    def _run_ssh_command_and_return_output(self, command):
+    def _run_ssh_command_and_return_output(self, command) -> str:
         # Copied from ssh_operator.py . It's not reusable from there.
         try:
             if self.ssh_conn_id:
@@ -143,6 +93,17 @@ class PBSJobCompleteSensor(BaseSensorOperator):
         except Exception as e:
             raise AirflowException("PBS Job Completion sensor error: {0}".format(str(e)))
 
+
+class PBSJobSensor(BaseSensorOperator, SSHRunMixin):
+    template_fields = ('pbs_job_id',)
+
+    @apply_defaults
+    def __init__(self,
+                 pbs_job_id=None,
+                 *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.pbs_job_id = pbs_job_id
+
     def poke(self, context):
         # qstat json output incorrectly attempts to escape single quotes
         # This can be fixed with sed, or within python, sed  "s/\\\'/'/g"
@@ -150,4 +111,5 @@ class PBSJobCompleteSensor(BaseSensorOperator):
         output = output.replace("\'", "'")
         result = json.loads(output)
 
-        return result['Jobs'][self.pbs_job_id]['job_state'] == 'F'
+        job_state = result['Jobs'][self.pbs_job_id]['job_state']
+        return job_state == 'F'
