@@ -30,7 +30,7 @@ ingest_dag = DAG(
     'nci_dataset_ingest',
     default_args=default_args,
     catchup=False,
-    schedule_interval="@weekly",
+    schedule_interval=None,
     template_searchpath='templates/'
 )
 

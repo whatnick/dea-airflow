@@ -7,9 +7,9 @@ synced_products = ['ls8_nbar_scene',
                    'ls8_nbart_scene',
                    'ls8_pq_scene',
                    'ls8_pq_legacy_scene',
-                   'ls7_nbar_scene,'
-                   'ls7_nbart_scene,'
-                   'ls7_pq_scene,'
+                   'ls7_nbar_scene',
+                   'ls7_nbart_scene',
+                   'ls7_pq_scene',
                    'ls7_pq_legacy_scene']
 
 SYNC_PREFIX_PATH = {
@@ -90,7 +90,7 @@ default_args = {
 with DAG('nci_dataset_sync',
          default_args=default_args,
          catchup=False,
-         schedule_interval="@weekly",
+         schedule_interval=None,
          template_searchpath='templates/'
          ) as dag:
     for product in synced_products:

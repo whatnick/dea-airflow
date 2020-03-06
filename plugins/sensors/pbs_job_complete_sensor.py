@@ -33,11 +33,11 @@ class SSHRunMixin:
             if not self.ssh_hook:
                 raise AirflowException("Cannot operate without ssh_hook or ssh_conn_id.")
 
-            if not self.command:
+            if not command:
                 raise AirflowException("SSH command not specified. Aborting.")
 
             with self.ssh_hook.get_conn() as ssh_client:
-                self.log.info("Running command: %s", self.command)
+                self.log.info("Running command: %s", command)
 
                 # set timeout taken as params
                 stdin, stdout, stderr = ssh_client.exec_command(command=command,
@@ -94,7 +94,8 @@ class SSHRunMixin:
             raise AirflowException("PBS Job Completion sensor error: {0}".format(str(e)))
 
 
-class PBSJobSensor(BaseSensorOperator, SSHRunMixin):
+# Putting the SSHMixin first, so that it hopefully consumes it's __init__ arguments
+class PBSJobSensor(SSHRunMixin, BaseSensorOperator):
     template_fields = ('pbs_job_id',)
 
     @apply_defaults
