@@ -1,4 +1,5 @@
 import json
+from base64 import b64decode
 from select import select
 
 from airflow import AirflowException
@@ -15,10 +16,11 @@ class SSHRunMixin:
                  *args,
                  **kwargs):
         super().__init__(*args, **kwargs)
+        self.log.info('Inside SSHRunMixin Init Function')
         self.ssh_hook = ssh_hook
         self.ssh_conn_id = ssh_conn_id
 
-    def _run_ssh_command_and_return_output(self, command) -> str:
+    def _run_ssh_command_and_return_output(self, command) -> (int, str):
         # Copied from ssh_operator.py . It's not reusable from there.
         try:
             if self.ssh_conn_id:
@@ -100,15 +102,33 @@ class PBSJobSensor(SSHRunMixin, BaseSensorOperator):
 
     @apply_defaults
     def __init__(self,
-                 pbs_job_id=None,
+                 pbs_job_id: str = None,
                  *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.pbs_job_id = pbs_job_id
+        self.log.info('Inside PBSJobSensor Init Function')
+        # The SSHOperator will base64 encode output stored in XCOM, if pickling of xcom vals is disabled
+        # For now, lets sniff the value and base64 decode it if necessary
+        if pbs_job_id.endswith('='):
+            self.pbs_job_id = b64decode(pbs_job_id).decode('utf8').strip()
+            self.log.info('Decoding pbs_job_id to: %s', self.pbs_job_id)
+        else:
+            # Lets trust the value given
+            self.pbs_job_id = pbs_job_id
+            self.log.info('Trusting given pbs_job_id: %s', self.pbs_job_id)
 
     def poke(self, context):
         # qstat json output incorrectly attempts to escape single quotes
         # This can be fixed with sed, or within python, sed  "s/\\\'/'/g"
-        output = self._run_ssh_command_and_return_output(f'qstat -fx -F json {self.pbs_job_id}')
+        pbs_job_id = self.pbs_job_id
+        if pbs_job_id.endswith('='):
+            self.pbs_job_id = b64decode(pbs_job_id).decode('utf8').strip()
+            self.log.info('Decoding pbs_job_id to: %s', self.pbs_job_id)
+        else:
+            # Lets trust the value given
+            self.pbs_job_id = pbs_job_id
+            self.log.info('Trusting given pbs_job_id: %s', self.pbs_job_id)
+
+        ret_val, output = self._run_ssh_command_and_return_output(f'qstat -fx -F json {self.pbs_job_id}')
         output = output.replace("\'", "'")
         result = json.loads(output)
 
