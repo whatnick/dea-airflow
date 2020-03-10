@@ -22,7 +22,7 @@ default_args = {
     'email_on_retry': False,
     'retries': 3,
     'retry_delay': timedelta(minutes=5),
-    'timeout': 90,  # For running SSH Commands
+    'timeout': 1800,  # per task, in seconds, For running SSH Commands
     'params': {
         'project': 'v10',
         'queue': 'normal',
@@ -31,6 +31,7 @@ default_args = {
         'queue_size': '10000',
     }
 }
+
 ingest_dag = DAG(
     'nci_dataset_ingest',
     default_args=default_args,
@@ -53,29 +54,18 @@ with ingest_dag:
         cd {{work_dir}};
     """
 
-    # Now we're into task_app territory, and have less control from here over output dirs
-    # Actually, Ingest doesn't use Task App.
-    INGEST_COMMAND = COMMON + """
-        
-        yes Y | dea-submit-ingest qsub --project {{ params.project }} --queue {{ params.queue }} --nodes 1 \
-        --walltime 15 \
-        --allow-product-changes --name ing_{{params.ing_product}}_{{params.year}} \
-        {{params.ing_product}} \
-        {{params.year}} \
-    """
-
     save_tasks_command = COMMON + """
         {% set ingestion_config = '/g/data/v10/public/modules/' + params.module + 
-            '/lib/python3.6/site-packages/digitalearthau/config/ingestion/' + {{params.ing_product}} '.yaml' %}
+            '/lib/python3.6/site-packages/digitalearthau/config/ingestion/' + params.ing_product + '.yaml' %}
             
         datacube -v ingest --year {{params.year}} --config-file {{ingestion_config}} --save-tasks {{task_file}}
     """
 
     test_tasks_command = COMMON + """
-        datacube -v ingest --allow-product-changes --load-tasks {{task_file}} --dry-run'
+        datacube -v ingest --allow-product-changes --load-tasks {{task_file}} --dry-run
     """
 
-    qsubbed_ingest_command = """
+    qsubbed_ingest_command = COMMON + """
         {% set distributed_script = '/g/data/v10/public/modules/' + params.module + 
             '/lib/python3.6/site-packages/digitalearthau/run_distributed.sh' %}
     
@@ -89,10 +79,10 @@ with ingest_dag:
           -P {{ params.project }} -o {{ work_dir }} -e {{ work_dir }} \
           -- {{ distributed_script}} {{ params.module }} --ppn 48 \
               datacube -v ingest --allow-product-changes --load_tasks {{ task_file }} \
-              --queue-size {{params.queue_size}} --executor distributed DSCHEDULER'
+              --queue-size {{params.queue_size}} --executor distributed DSCHEDULER
     """
 
-    completed = DummyOperator(task_id='submitted_to_pbs')
+    completed = DummyOperator(task_id='all_done')
     for ing_product in ingest_products.values():
         save_tasks = SSHOperator(
             task_id=f'save_tasks_{ing_product}',
@@ -111,7 +101,7 @@ with ingest_dag:
         submit_ingest_job = SSHOperator(
             task_id=submit_task_id,
             ssh_conn_id='lpgs_gadi',
-            command=test_tasks_command,
+            command=qsubbed_ingest_command,
             params={'ing_product': ing_product},
 
         )
