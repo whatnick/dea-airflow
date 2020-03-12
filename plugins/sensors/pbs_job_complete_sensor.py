@@ -96,6 +96,15 @@ class SSHRunMixin:
             raise AirflowException("PBS Job Completion sensor error: {0}".format(str(e)))
 
 
+def maybe_decode_base64(data):
+    # The SSHOperator will base64 encode output stored in XCOM, if pickling of xcom vals is disabled
+    # For now, lets sniff the value and base64 decode it if necessary
+    if data.endswith('='):
+        return b64decode(data).decode('utf8').strip()
+    else:
+        return data
+
+
 # Putting the SSHMixin first, so that it hopefully consumes it's __init__ arguments
 class PBSJobSensor(SSHRunMixin, BaseSensorOperator):
     template_fields = ('pbs_job_id',)
@@ -106,15 +115,9 @@ class PBSJobSensor(SSHRunMixin, BaseSensorOperator):
                  *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.log.info('Inside PBSJobSensor Init Function')
-        # The SSHOperator will base64 encode output stored in XCOM, if pickling of xcom vals is disabled
-        # For now, lets sniff the value and base64 decode it if necessary
-        if pbs_job_id.endswith('='):
-            self.pbs_job_id = b64decode(pbs_job_id).decode('utf8').strip()
-            self.log.info('Decoding pbs_job_id to: %s', self.pbs_job_id)
-        else:
-            # Lets trust the value given
-            self.pbs_job_id = pbs_job_id
-            self.log.info('Trusting given pbs_job_id: %s', self.pbs_job_id)
+
+        self.pbs_job_id = maybe_decode_base64(pbs_job_id)
+        self.log.info('Using pbs_job_id: %s', self.pbs_job_id)
 
     def poke(self, context):
         # qstat json output incorrectly attempts to escape single quotes
