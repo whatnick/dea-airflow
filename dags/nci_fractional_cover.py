@@ -34,7 +34,8 @@ dag = DAG(
     default_args=default_args,
     catchup=False,
     schedule_interval=None,
-    template_searchpath='templates/'
+    template_searchpath='templates/',
+    tags=['nci'],
 )
 
 
@@ -91,7 +92,7 @@ with dag:
       
         cd {{work_dir}};
         datacube-fc generate -vv --config_file ~/datacube.conf \
-          --task-desc {{ task_desc }} --log-queries --no-qsub --tag ls_fc
+          --task-desc {{ task_desc }} --no-qsub --tag ls_fc
     """
     fc_test_cmd = COMMON + """
       
@@ -99,13 +100,17 @@ with dag:
           --task-desc {{ task_desc }} --tag ls_fc
     """
     submit_fc_cmd = COMMON + """
+      # TODO Should probably use an intermediate task here to calculate job size
+      # based on number of tasks.
+      # Although, if we run regularaly, it should be pretty consistent.
+      # Last time I checked, FC took about 30s per tile (task).
       
       cd {{work_dir}};
       
-      qsub -N fc_{{ params.product}}_{{ params.year }} \
+      qsub -N {{ params.product}}_{{ params.year }} \
       -q {{ params.queue }} \
       -W umask=33 \
-      -l wd,walltime=1:00:00,mem=4GB,ncpus=1 -m abe \
+      -l wd,walltime=5:00:00,mem=190GB,ncpus=48 -m abe \
       -l storage=gdata/v10+gdata/fk4+gdata/rs0+gdata/if87 \
       -M nci.monitor@dea.ga.gov.au \
       -P {{ params.project }} -o {{ work_dir }} -e {{ work_dir }} \
@@ -114,7 +119,7 @@ with dag:
           module load {{ params.module }}; \
           datacube-fc run -vv \
           --task-desc {{ task_desc }} \
-          --celery pbs_launch --tag ls_fc"
+          --celery pbs-launch --tag ls_fc"
     """
 
     for product in fc_products:
@@ -145,20 +150,20 @@ with dag:
             task_id=f'test_fc_tasks_{product}',
         )
 
-#        submit_fc_job = SSHOperator(
-#            task_id=f'submit_fc_{product}',
-#            ssh_conn_id='lpgs_gadi',
-#            command=submit_fc_cmd,
-#            params={'product': product},
-#            do_xcom_push=True
-#        )
-#
-#        wait_for_completion = PBSJobSensor(
-#            task_id=f'wait_for_{product}_ingest',
-#            ssh_conn_id='lpgs_gadi',
-#            pbs_job_id="{{ ti.xcom_pull(task_ids='submit_fc_%s') }}" % product,
-#        )
+        submit_fc_job = SSHOperator(
+            task_id=f'submit_fc_{product}',
+            ssh_conn_id='lpgs_gadi',
+            command=submit_fc_cmd,
+            params={'product': product},
+            do_xcom_push=True
+        )
+
+        wait_for_completion = PBSJobSensor(
+            task_id=f'wait_for_{product}_ingest',
+            ssh_conn_id='lpgs_gadi',
+            pbs_job_id="{{ ti.xcom_pull(task_ids='submit_fc_%s') }}" % product,
+        )
 
         start >> initialise_workdir >> extract_workdir >> generate_tasks
-        generate_tasks >> test_tasks >> completed # >> submit_fc_job >> wait_for_completion
-#        wait_for_completion >> completed
+        generate_tasks >> test_tasks >> submit_fc_job >> wait_for_completion
+        wait_for_completion >> completed

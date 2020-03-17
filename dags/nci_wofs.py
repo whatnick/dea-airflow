@@ -6,11 +6,11 @@ from datetime import datetime, timedelta
 default_args = {
     'owner': 'Damien Ayers',
     'depends_on_past': False,  # Very important, will cause a single failure to propagate forever
-    'start_date': datetime(2020, 2, 17),
+    'start_date': datetime(2020, 3, 12),
     'email': ['damien.ayers@ga.gov.au'],
     'email_on_failure': False,
     'email_on_retry': False,
-    'retries': 3,
+    'retries': 1,
     'retry_delay': timedelta(minutes=1),
     'timeout': 90,  # For running SSH Commands
     'params': {
@@ -22,11 +22,12 @@ default_args = {
 }
 
 dag = DAG(
-    'execute_wofs',
+    'nci_wofs',
     default_args=default_args,
     catchup=False,
-    schedule_interval="@daily",
-    template_searchpath='templates/'
+    schedule_interval=None,
+    template_searchpath='templates/',
+    tags=['nci'],
 )
 
 with dag:

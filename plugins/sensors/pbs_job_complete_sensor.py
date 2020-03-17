@@ -136,4 +136,11 @@ class PBSJobSensor(SSHRunMixin, BaseSensorOperator):
         result = json.loads(output)
 
         job_state = result['Jobs'][self.pbs_job_id]['job_state']
-        return job_state == 'F'
+        if job_state == 'F':
+            exit_status = result['Jobs'][self.pbs_job_id]['Exit_status']
+            if exit_status == 0:
+                return True
+            else:
+                raise AirflowException('PBS Job Failed %s', self.pbs_job_id)
+        else:
+            return False
