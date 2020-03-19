@@ -1,7 +1,8 @@
 from airflow import DAG
 from airflow.contrib.operators.ssh_operator import SSHOperator
-from airflow.operators.bash_operator import BashOperator
 from datetime import datetime, timedelta
+
+from sensors.pbs_job_complete_sensor import PBSJobSensor
 
 synced_products = ['ls8_nbar_scene',
                    'ls8_nbart_scene',
@@ -96,17 +97,10 @@ with DAG('nci_dataset_sync',
     for product in synced_products:
         submit_sync = make_sync_task(product)
 
-    # get_qstat_output = SSHOperator(
-    #     task_id='get_qstat_output',
-    #     command='qstat -xf -F json',
-    #     do_xcom_push=True,
-    #     dag=dag
-    # )
+        wait_for_completion = PBSJobSensor(
+            task_id=f'wait_for_{product}',
+            ssh_conn_id='lpgs_gadi',
+            pbs_job_id="{{ ti.xcom_pull(task_ids='submit_sync_%s') }}" % product
+        )
+        submit_sync >> wait_for_completion
 
-    # TODO Implement an SSH Sensor to wait for the submitted job to be done
-    wait_for_pbs = BashOperator(
-        task_id=f'wait_for_pbs_sync_{product}',
-        bash_command='date',
-        dag=dag)
-
-    submit_sync >> wait_for_pbs
