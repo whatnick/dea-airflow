@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 default_args = {
     'owner': 'Damien Ayers',
     'start_date': datetime(2020, 3, 12),
-    'retries': 1,
+    'retries': 0,
     'retry_delay': timedelta(minutes=1),
     'timeout': 1200,  # For running SSH Commands
 }
@@ -31,6 +31,6 @@ with dag:
         pip3 install --user pyyaml jinja2
         
         rm -rf /g/data/v10/public/modules/dea/unstable/
-        ./build_environment_module.py dea-unstable/modulespec.yaml
+        ./build_environment_module.py dea_unstable/modulespec.yaml
         """,
     )
