@@ -1,18 +1,18 @@
+from datetime import datetime, timedelta
+
 from airflow import DAG
 from airflow.contrib.operators.ssh_operator import SSHOperator
 from airflow.operators.dummy_operator import DummyOperator
-from datetime import datetime, timedelta
+
+from sensors.pbs_job_complete_sensor import PBSJobSensor
 
 default_args = {
     'owner': 'Damien Ayers',
-    'depends_on_past': False,  # Very important, will cause a single failure to propagate forever
     'start_date': datetime(2020, 3, 12),
-    'email': ['damien.ayers@ga.gov.au'],
-    'email_on_failure': False,
-    'email_on_retry': False,
-    'retries': 1,
+    'retries': 0,
     'retry_delay': timedelta(minutes=1),
-    'timeout': 90,  # For running SSH Commands
+    'timeout': 1200,  # For running SSH Commands
+    'ssh_conn_id': ' lpgs_gadi',
     'params': {
         'project': 'v10',
         'queue': 'normal',
@@ -33,22 +33,61 @@ dag = DAG(
 with dag:
     start = DummyOperator(task_id='start')
 
-    # Now we're into task_app territory, and have less control from here over output dirs
-    WOFS_COMMAND = """
+    COMMON = """
+          {% set work_dir = '/g/data/v10/work/wofs_albers/' + ts_nodash %}
           module use /g/data/v10/public/modules/modulefiles;
           module load {{ params.module }};
+          
           APP_CONFIG=/g/data/v10/public/modules/{{params.module}}/wofs/config/wofs_albers.yaml
-          datacube-wofs submit -v -v --project {{ params.project }} --queue {{ params.queue }} --year {{ params.year }} \
-          --app-config ${APP_CONFIG} --tag ls_wofs
-        
     """
-    wofs_task = SSHOperator(
-        task_id=f'submit_wofs',
-        ssh_conn_id='lpgs_gadi',
-        command=WOFS_COMMAND,
-        params={'product': 'wofs_albers'},
+    generate_tasks = SSHOperator(
+        task_id='generate_wofs_tasks',
+        command=COMMON + """
+        
+            mkdir -p {{work_dir}}
+            cd {{work_dir}}
+            datacube --version
+            datacube-wofs --version
+            datacube-wofs generate -vv --app-config=${APP_CONFIG} --year {{params.year}} --output-filename tasks.pickle
+        """
+    )
+
+    test_tasks = SSHOperator(
+        task_id='test_wofs_tasks',
+        command=COMMON + """
+            cd {{work_dir}}
+            datacube-wofs run -vv --dry-run --input-filename tasks.pickle
+        """
+    )
+    submit_task_id = 'submit_wofs_albers'
+    submit_wofs_job = SSHOperator(
+        task_id=submit_task_id,
+        command=COMMON + """
+          # TODO Should probably use an intermediate task here to calculate job size
+          # based on number of tasks.
+          # Although, if we run regularaly, it should be pretty consistent.
+          # Last time I checked, FC took about 30s per tile (task).
+
+          cd {{work_dir}}
+
+          qsub -N wofs_albers \
+          -q {{ params.queue }} \
+          -W umask=33 \
+          -l wd,walltime=5:00:00,mem=190GB,ncpus=48 -m abe \
+          -l storage=gdata/v10+gdata/fk4+gdata/rs0+gdata/if87 \
+          -M nci.monitor@dea.ga.gov.au \
+          -P {{ params.project }} -o {{ work_dir }} -e {{ work_dir }} \
+          -- /bin/bash -l -c \
+              "module use /g/data/v10/public/modules/modulefiles/; \
+              module load {{ params.module }}; \
+              datacube-wofs run -vv --input-filename {{work_dir}}/tasks.pickle --celery pbs-launch"
+        """,
         do_xcom_push=True,
+    )
+    wait_for_completion = PBSJobSensor(
+        task_id=f'wait_for_wofs_albers',
+        pbs_job_id="{{ ti.xcom_pull(task_ids='%s') }}" % submit_task_id,
     )
     completed = DummyOperator(task_id='submitted_to_pbs')
 
-    start >> wofs_task >> completed
+    start >> generate_tasks >> test_tasks >> submit_wofs_job >> wait_for_completion >> completed
