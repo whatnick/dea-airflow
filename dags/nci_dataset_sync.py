@@ -1,6 +1,7 @@
+from datetime import datetime, timedelta
+
 from airflow import DAG
 from airflow.contrib.operators.ssh_operator import SSHOperator
-from datetime import datetime, timedelta
 
 from sensors.pbs_job_complete_sensor import PBSJobSensor
 
@@ -55,21 +56,6 @@ SYNC_COMMAND = """
       dea-sync -vvv --cache-folder {{sync_cache_dir}} -j 1 --update-locations --index-missing {{ sync_path }}"
 """
 
-
-def make_sync_task(prod):
-    submit_sync = SSHOperator(
-        task_id=f'submit_sync_{prod}',
-        ssh_conn_id='lpgs_gadi',
-        command=SYNC_COMMAND,
-        params={'product': prod,
-                'sync_prefix_path': SYNC_PREFIX_PATH[prod],
-                'sync_suffix_path': SYNC_SUFFIX_PATH[prod],
-                },
-        do_xcom_push=True,
-    )
-    return submit_sync
-
-
 default_args = {
     'owner': 'Damien Ayers',
     'depends_on_past': False,
@@ -79,7 +65,6 @@ default_args = {
     'email_on_retry': False,
     'retries': 0,
     'retry_delay': timedelta(minutes=5),
-    'timeout': 90,  # For running SSH Commands
     'params': {
         'project': 'v10',
         'queue': 'normal',
@@ -95,12 +80,22 @@ with DAG('nci_dataset_sync',
          template_searchpath='templates/'
          ) as dag:
     for product in synced_products:
-        submit_sync = make_sync_task(product)
+        submit_sync = SSHOperator(
+            task_id=f'submit_sync_{product}',
+            ssh_conn_id='lpgs_gadi',
+            command=SYNC_COMMAND,
+            params={'product': product,
+                    'sync_prefix_path': SYNC_PREFIX_PATH[product],
+                    'sync_suffix_path': SYNC_SUFFIX_PATH[product],
+                    },
+            do_xcom_push=True,
+            timeout=90,  # For running SSH Commands
+        )
 
         wait_for_completion = PBSJobSensor(
             task_id=f'wait_for_{product}',
             ssh_conn_id='lpgs_gadi',
-            pbs_job_id="{{ ti.xcom_pull(task_ids='submit_sync_%s') }}" % product
+            pbs_job_id="{{ ti.xcom_pull(task_ids='submit_sync_%s') }}" % product,
+
         )
         submit_sync >> wait_for_completion
-

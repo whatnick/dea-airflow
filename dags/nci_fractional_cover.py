@@ -12,7 +12,6 @@ default_args = {
     'start_date': datetime(2020, 2, 17),
     'retries': 0,
     'retry_delay': timedelta(minutes=1),
-    'timeout': 1800,  # For running SSH Commands
     'ssh_conn_id': 'lpgs_gadi',
     'params': {
         'project': 'v10',
@@ -65,6 +64,7 @@ with dag:
             """,
             params={'product': product},
             task_id=f'generate_tasks_{product}',
+            timeout=60 * 20,
         )
         test_tasks = SSHOperator(
             command=COMMON + """
@@ -73,6 +73,7 @@ with dag:
             """,
             params={'product': product},
             task_id=f'test_tasks_{product}',
+            timeout=60 * 20,
         )
 
         submit_task_id = f'submit_{product}'
@@ -99,12 +100,14 @@ with dag:
                   datacube-fc run -vv --input-filename {{work_dir}}/tasks.pickle --celery pbs-launch"
             """,
             params={'product': product},
-            do_xcom_push=True
+            timeout=60 * 20,
+            do_xcom_push=True,
         )
 
         wait_for_completion = PBSJobSensor(
             task_id=f'wait_for_{product}',
             pbs_job_id="{{ ti.xcom_pull(task_ids='%s') }}" % submit_task_id,
+            timeout=60 * 60 * 24 * 7,
         )
 
         start >> generate_tasks >> test_tasks >> submit_fc_job >> wait_for_completion >> completed

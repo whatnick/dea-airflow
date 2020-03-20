@@ -49,7 +49,8 @@ with dag:
             datacube --version
             datacube-wofs --version
             datacube-wofs generate -vv --app-config=${APP_CONFIG} --year {{params.year}} --output-filename tasks.pickle
-        """
+        """,
+        timeout=60 * 60 * 2,  # For running SSH Commands
     )
 
     test_tasks = SSHOperator(
@@ -57,7 +58,8 @@ with dag:
         command=COMMON + """
             cd {{work_dir}}
             datacube-wofs run -vv --dry-run --input-filename tasks.pickle
-        """
+        """,
+        timeout=60 * 20,
     )
     submit_task_id = 'submit_wofs_albers'
     submit_wofs_job = SSHOperator(
@@ -83,10 +85,12 @@ with dag:
               datacube-wofs run -vv --input-filename {{work_dir}}/tasks.pickle --celery pbs-launch"
         """,
         do_xcom_push=True,
+        timeout=60 * 20,
     )
     wait_for_completion = PBSJobSensor(
         task_id=f'wait_for_wofs_albers',
         pbs_job_id="{{ ti.xcom_pull(task_ids='%s') }}" % submit_task_id,
+        timeout=60 * 60 * 24 * 7,
     )
     completed = DummyOperator(task_id='submitted_to_pbs')
 
