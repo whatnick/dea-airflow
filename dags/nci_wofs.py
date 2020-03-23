@@ -11,13 +11,12 @@ default_args = {
     'start_date': datetime(2020, 3, 12),
     'retries': 0,
     'retry_delay': timedelta(minutes=1),
-    'timeout': 1200,  # For running SSH Commands
-    'ssh_conn_id': ' lpgs_gadi',
+    'ssh_conn_id': 'lpgs_gadi',
     'params': {
         'project': 'v10',
         'queue': 'normal',
         'module': 'dea/unstable',
-        'year': '2019'
+        'year': '2020'
     }
 }
 
@@ -50,7 +49,7 @@ with dag:
             datacube-wofs --version
             datacube-wofs generate -vv --app-config=${APP_CONFIG} --year {{params.year}} --output-filename tasks.pickle
         """,
-        timeout=60 * 60 * 2,  # For running SSH Commands
+        timeout=60 * 60 * 2,
     )
 
     test_tasks = SSHOperator(
@@ -82,7 +81,7 @@ with dag:
           -- /bin/bash -l -c \
               "module use /g/data/v10/public/modules/modulefiles/; \
               module load {{ params.module }}; \
-              datacube-wofs run -vv --input-filename {{work_dir}}/tasks.pickle --celery pbs-launch"
+              datacube-wofs run -v --input-filename {{work_dir}}/tasks.pickle --celery pbs-launch"
         """,
         do_xcom_push=True,
         timeout=60 * 20,
