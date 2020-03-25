@@ -1,5 +1,6 @@
 import json
 from base64 import b64decode
+from json import JSONDecodeError
 from select import select
 
 from airflow import AirflowException
@@ -112,8 +113,9 @@ class PBSJobSensor(SSHRunMixin, BaseSensorOperator):
     @apply_defaults
     def __init__(self,
                  pbs_job_id: str = None,
+                 poke_interval: int = 5 * 60,
                  *args, **kwargs):
-        super().__init__(*args, **kwargs)
+        super().__init__(poke_interval=poke_interval, *args, **kwargs)
         self.log.info('Inside PBSJobSensor Init Function')
 
         self.pbs_job_id = maybe_decode_base64(pbs_job_id)
@@ -133,7 +135,11 @@ class PBSJobSensor(SSHRunMixin, BaseSensorOperator):
 
         ret_val, output = self._run_ssh_command_and_return_output(f'qstat -fx -F json {self.pbs_job_id}')
         output = output.replace("\'", "'")
-        result = json.loads(output)
+        try:
+            result = json.loads(output)
+        except JSONDecodeError as e:
+            self.log.exception("Error parsing qstat output: ", exc_info=e)
+            return False
 
         job_state = result['Jobs'][self.pbs_job_id]['job_state']
         if job_state == 'F':

@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 
 from sensors.pbs_job_complete_sensor import PBSJobSensor
 
-ingest_products = {
+INGEST_PRODUCTS = {
     'ls8_nbar_scene': 'ls8_nbar_albers',
     'ls8_nbart_scene': 'ls8_nbart_albers',
     'ls8_pq_scene': 'ls8_pq_albers',
@@ -24,7 +24,6 @@ default_args = {
     'email_on_retry': False,
     'retries': 3,
     'retry_delay': timedelta(minutes=5),
-    'timeout': 1800,  # per task, in seconds, For running SSH Commands
     'params': {
         'project': 'v10',
         'queue': 'normal',
@@ -86,18 +85,20 @@ with ingest_dag:
     """)
 
     completed = DummyOperator(task_id='all_done')
-    for ing_product in ingest_products.values():
+    for ing_product in INGEST_PRODUCTS.values():
         save_tasks = SSHOperator(
             task_id=f'save_tasks_{ing_product}',
             ssh_conn_id='lpgs_gadi',
             command=save_tasks_command,
             params={'ing_product': ing_product},
+            timeout=90,
         )
         test_tasks = SSHOperator(
             task_id=f'test_tasks_{ing_product}',
             ssh_conn_id='lpgs_gadi',
             command=test_tasks_command,
             params={'ing_product': ing_product},
+            timeout=90,
         )
 
         submit_task_id = f'submit_ingest_{ing_product}'
@@ -107,6 +108,7 @@ with ingest_dag:
             command=qsubbed_ingest_command,
             params={'ing_product': ing_product},
             do_xcom_push=True,
+            timeout=90,
 
         )
         wait_for_completion = PBSJobSensor(
