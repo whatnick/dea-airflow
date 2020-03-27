@@ -206,3 +206,5 @@ fabric.properties
 # Airflow Stuff
 logs/
 airflow-webserver.pid
+
+airflow.cfg
