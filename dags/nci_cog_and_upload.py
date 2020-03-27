@@ -6,6 +6,12 @@ from airflow.operators.dummy_operator import DummyOperator
 
 from sensors.pbs_job_complete_sensor import PBSJobSensor
 
+COG_S3PREFIX_PATH = {
+    'wofs_albers': 's3://dea-public-data/WOfS/WOFLs/v2.1.5/combined',
+    'ls8_fc_albers': 's3://dea-public-data/fractional-cover/fc/v2.2.1/ls8',
+    'ls7_fc_albers': 's3://dea-public-data/fractional-cover/fc/v2.2.1/ls7'
+}
+
 default_args = {
     'owner': 'Damien Ayers',
     'start_date': datetime(2020, 3, 12),
@@ -21,7 +27,7 @@ default_args = {
 }
 
 dag = DAG(
-    'nci_wofs',
+    'nci_cog_and_upload',
     default_args=default_args,
     catchup=False,
     schedule_interval=None,
@@ -39,27 +45,59 @@ with dag:
           
           APP_CONFIG=/g/data/v10/public/modules/{{params.module}}/wofs/config/wofs_albers.yaml
     """
-    generate_tasks = SSHOperator(
+    download_s3_inventory = SSHOperator(
+        task_id='download_s3_inventory',
+        command='''
+            source "$HOME"/.bashrc
+            module use /g/data/v10/public/modules/modulefiles
+            module load dea
+
+            dea_cogger save-s3-inventory -p "${PRODUCT}" -o "${OUT_DIR}" -c aws_products_config.yaml
+        '''
+    )
+    generate_work_list = SSHOperator(
         task_id='generate_wofs_tasks',
         command=COMMON + """
+            module use /g/data/v10/public/modules/modulefiles/
+            module load dea
+            module load openmpi/3.1.2
+
+            dea_cogger generate-work-list --config "${ROOT_DIR}"/aws_products_config.yaml \
+            --product-name "$PRODUCT_NAME" --time-range "$TIME_RANGE" --output-dir "$OUTPUT_DIR" --pickle-file "$PICKLE_FILE"
         
-            mkdir -p {{work_dir}}
-            cd {{work_dir}}
-            datacube --version
-            datacube-wofs --version
-            datacube-wofs generate -vv --app-config=${APP_CONFIG} --year {{params.year}} --output-filename tasks.pickle
         """,
         timeout=60 * 60 * 2,
     )
+    bulk_cog_convert = SSHOperator(
+        task_id='submit_cog_convert_job',
+        command="""
+            module use /g/data/v10/public/modules/modulefiles/
+            module load dea
+            module load openmpi/3.1.2
 
-    test_tasks = SSHOperator(
-        task_id='test_wofs_tasks',
-        command=COMMON + """
-            cd {{work_dir}}
-            datacube-wofs run -vv --dry-run --input-filename tasks.pickle
+            mpirun --tag-output python3 "${ROOT_DIR}"/cog_conv_app.py mpi-convert -p "${PRODUCT}" -o "${OUTPUT_DIR}" "${FILE_LIST}"
         """,
+        do_xcom_push=True,
         timeout=60 * 20,
     )
+
+    validate_cogs = SSHOperator(
+        task_id='validate_cogs',
+        command="""
+        """
+    )
+
+    upload_to_s3 = SSHOperator(
+        task_id='upload_to_s3',
+        command="""
+        aws s3 sync "$OUT_DIR" "$S3_BUCKET" --exclude "*.pickle" --exclude "*.txt" --exclude "*file_list*" \
+        --exclude "*.log"
+
+        # Remove cog converted files after aws s3 sync
+        rm -r "$OUT_DIR"
+        """
+    )
+
     submit_task_id = 'submit_wofs_albers'
     submit_wofs_job = SSHOperator(
         task_id=submit_task_id,
@@ -83,8 +121,6 @@ with dag:
               module load {{ params.module }}; \
               datacube-wofs run -v --input-filename {{work_dir}}/tasks.pickle --celery pbs-launch"
         """,
-        do_xcom_push=True,
-        timeout=60 * 20,
     )
     wait_for_completion = PBSJobSensor(
         task_id=f'wait_for_wofs_albers',
@@ -93,4 +129,4 @@ with dag:
     )
     completed = DummyOperator(task_id='submitted_to_pbs')
 
-    start >> generate_tasks >> test_tasks >> submit_wofs_job >> wait_for_completion >> completed
+
