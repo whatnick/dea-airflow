@@ -1,15 +1,37 @@
-from datetime import datetime, timedelta
+"""
+# Batch Convert NetCDFs to COGs and Upload to AWS S3
+
+This DAG runs tasks on Gadi at the NCI. It:
+
+ * downloads an S3 inventory listing for each ODC Product,
+ * compares what is in the Database with what is on S3,
+ * runs a batch convert of NetCDF to COG (Inside a scheduled PBS job)
+ * Uploads the COGs to S3
+
+"""
+import os
+from textwrap import dedent
 
 from airflow import DAG
 from airflow.contrib.operators.ssh_operator import SSHOperator
-from airflow.operators.dummy_operator import DummyOperator
+from datetime import datetime, timedelta
 
 from sensors.pbs_job_complete_sensor import PBSJobSensor
 
+DEST = os.environ.get(
+    "COG_OUTPUT_DESTINATION",
+    "s3://dea-public-data/"
+)
+
+NCI_MODULE = os.environ.get(
+    "NCI_MODULE",
+    'dea/unstable'
+)
+
 COG_S3PREFIX_PATH = {
-    'wofs_albers': 's3://dea-public-data/WOfS/WOFLs/v2.1.5/combined',
-    'ls8_fc_albers': 's3://dea-public-data/fractional-cover/fc/v2.2.1/ls8',
-    'ls7_fc_albers': 's3://dea-public-data/fractional-cover/fc/v2.2.1/ls7'
+    'wofs_albers': f'{DEST}/WOfS/WOFLs/v2.1.5/combined',
+    'ls8_fc_albers': f'{DEST}/dea-public-data/fractional-cover/fc/v2.2.1/ls8',
+    'ls7_fc_albers': f'{DEST}/dea-public-data/fractional-cover/fc/v2.2.1/ls7'
 }
 
 default_args = {
@@ -21,13 +43,14 @@ default_args = {
     'params': {
         'project': 'v10',
         'queue': 'normal',
-        'module': 'dea/unstable',
+        'module': NCI_MODULE,
         'year': '2020'
     }
 }
 
 dag = DAG(
     'nci_cog_and_upload',
+    doc_md=__doc__,
     default_args=default_args,
     catchup=False,
     schedule_interval=None,
@@ -36,97 +59,119 @@ dag = DAG(
 )
 
 with dag:
-    start = DummyOperator(task_id='start')
+    for product, upload_path in COG_S3PREFIX_PATH.items():
+        COMMON = """
+                {% set work_dir = '/g/data/v10/work/cog/' + params.product + '/' + ts_nodash %}
+                module load {{params.module}}
+              
+        """
+        download_s3_inventory = SSHOperator(
+            task_id=f'download_s3_inventory_{product}',
+            command=dedent(COMMON + '''
+                mkdir -p {{work_dir}}
 
-    COMMON = """
-          {% set work_dir = '/g/data/v10/work/wofs_albers/' + ts_nodash %}
-          module use /g/data/v10/public/modules/modulefiles;
-          module load {{ params.module }};
-          
-          APP_CONFIG=/g/data/v10/public/modules/{{params.module}}/wofs/config/wofs_albers.yaml
-    """
-    download_s3_inventory = SSHOperator(
-        task_id='download_s3_inventory',
-        command='''
-            source "$HOME"/.bashrc
-            module use /g/data/v10/public/modules/modulefiles
-            module load dea
+                dea-cogger save-s3-inventory --product-name "{{ params.product }}" --output-dir "{{work_dir}}"
+            '''),
+            params={'product': product},
+        )
+        generate_work_list = SSHOperator(
+            task_id=f'generate_work_list_{product}',
+            command=dedent(COMMON + """
+                cd {{work_dir}}
 
-            dea_cogger save-s3-inventory -p "${PRODUCT}" -o "${OUT_DIR}" -c aws_products_config.yaml
-        '''
-    )
-    generate_work_list = SSHOperator(
-        task_id='generate_wofs_tasks',
-        command=COMMON + """
-            module use /g/data/v10/public/modules/modulefiles/
-            module load dea
-            module load openmpi/3.1.2
-
-            dea_cogger generate-work-list --config "${ROOT_DIR}"/aws_products_config.yaml \
-            --product-name "$PRODUCT_NAME" --time-range "$TIME_RANGE" --output-dir "$OUTPUT_DIR" --pickle-file "$PICKLE_FILE"
+                dea-cogger generate-work-list --product-name "{{params.product}}" \
+                 --output-dir "{{work_dir}}" --s3-list  "{{params.product}}_s3_inv_list.txt" \
+                 --time-range "time in [2018-01-01, 2020-12-31]"
+            """),
+            # --time-range "time in [{{prev_ds}}, {{ds}}]"
+            timeout=60 * 60 * 2,
+            params={'product': product},
+        )
+        submit_task_id = f'submit_cog_convert_job_{product}'
+        bulk_cog_convert = SSHOperator(
+            task_id=submit_task_id,
+            command=dedent(COMMON + """
+                cd {{work_dir}}
+                
+                qsub <<EOF
+                #!/bin/bash
+                #PBS -l wd,walltime=5:00:00,mem=190GB,ncpus=48,jobfs=1GB
+                #PBS -P {{params.project}}
+                #PBS -q {{params.queue}}
+                #PBS -l storage=gdata/v10+gdata/fk4+gdata/rs0+gdata/if87
+                #PBS -W umask=33
+                #PBS -N cog_{{params.product}} 
+                
         
-        """,
-        timeout=60 * 60 * 2,
-    )
-    bulk_cog_convert = SSHOperator(
-        task_id='submit_cog_convert_job',
-        command="""
-            module use /g/data/v10/public/modules/modulefiles/
-            module load dea
-            module load openmpi/3.1.2
+                module load {{params.module}}
+                module load openmpi/3.1.4
 
-            mpirun --tag-output python3 "${ROOT_DIR}"/cog_conv_app.py mpi-convert -p "${PRODUCT}" -o "${OUTPUT_DIR}" "${FILE_LIST}"
-        """,
-        do_xcom_push=True,
-        timeout=60 * 20,
-    )
+                mpirun --tag-output dea-cogger mpi-convert --product-name "{{params.product}}" 
+                 --output-dir "{{work_dir}}" {{params.product}}_file_list.txt
+                
+                EOF
+            """),
+            do_xcom_push=True,
+            timeout=60 * 5,
+            params={'product': product},
+        )
 
-    validate_cogs = SSHOperator(
-        task_id='validate_cogs',
-        command="""
-        """
-    )
+        wait_for_cog_convert = PBSJobSensor(
+            task_id=f'wait_for_cog_convert_{product}',
+            pbs_job_id="{{ ti.xcom_pull(task_ids='%s') }}" % submit_task_id,
+            timeout=60 * 60 * 24 * 7,
+        )
 
-    upload_to_s3 = SSHOperator(
-        task_id='upload_to_s3',
-        command="""
-        aws s3 sync "$OUT_DIR" "$S3_BUCKET" --exclude "*.pickle" --exclude "*.txt" --exclude "*file_list*" \
-        --exclude "*.log"
+        validate_task_id = f'submit_validate_cog_job_{product}'
+        validate_cogs = SSHOperator(
+            task_id=validate_task_id,
+            command=dedent(COMMON + """
+                cd {{work_dir}}
+                
+                qsub <<EOF
+                #!/bin/bash
+                #PBS -l wd,walltime=5:00:00,mem=190GB,ncpus=48,jobfs=1GB
+                #PBS -P {{params.project}}
+                #PBS -q {{params.queue}}
+                #PBS -l storage=gdata/v10+gdata/fk4+gdata/rs0+gdata/if87
+                #PBS -W umask=33
+                #PBS -N cog_{{params.product}} 
+                
+        
+                module load {{params.module}}
+                module load openmpi/3.1.4
 
-        # Remove cog converted files after aws s3 sync
-        rm -r "$OUT_DIR"
-        """
-    )
+                mpirun --tag-output dea-cogger verify --rm-broken "{{work_dir}}"
+                
+                EOF
+            """),
+            params={'product': product},
+        )
+        wait_for_validate_job = PBSJobSensor(
+            task_id=f'wait_for_cog_validate_{product}',
+            pbs_job_id="{{ ti.xcom_pull(task_ids='%s') }}" % validate_task_id,
+            timeout=60 * 60 * 24 * 7,
 
-    submit_task_id = 'submit_wofs_albers'
-    submit_wofs_job = SSHOperator(
-        task_id=submit_task_id,
-        command=COMMON + """
-          # TODO Should probably use an intermediate task here to calculate job size
-          # based on number of tasks.
-          # Although, if we run regularaly, it should be pretty consistent.
-          # Last time I checked, FC took about 30s per tile (task).
+        )
 
-          cd {{work_dir}}
+        upload_to_s3 = SSHOperator(
+            task_id=f'upload_to_s3_{product}',
+            command=dedent(COMMON + """
+            aws s3 sync "{{work_dir}}" "{{params.upload_path}}" \
+            --exclude "*.pickle" --exclude "*.txt" --exclude "*file_list*" --exclude "*.log"
+            """),
+            params={'product': product,
+                    'upload_path': upload_path},
+        )
 
-          qsub -N wofs_albers \
-          -q {{ params.queue }} \
-          -W umask=33 \
-          -l wd,walltime=5:00:00,mem=190GB,ncpus=48 -m abe \
-          -l storage=gdata/v10+gdata/fk4+gdata/rs0+gdata/if87 \
-          -M nci.monitor@dea.ga.gov.au \
-          -P {{ params.project }} -o {{ work_dir }} -e {{ work_dir }} \
-          -- /bin/bash -l -c \
-              "module use /g/data/v10/public/modules/modulefiles/; \
-              module load {{ params.module }}; \
-              datacube-wofs run -v --input-filename {{work_dir}}/tasks.pickle --celery pbs-launch"
-        """,
-    )
-    wait_for_completion = PBSJobSensor(
-        task_id=f'wait_for_wofs_albers',
-        pbs_job_id="{{ ti.xcom_pull(task_ids='%s') }}" % submit_task_id,
-        timeout=60 * 60 * 24 * 7,
-    )
-    completed = DummyOperator(task_id='submitted_to_pbs')
+        delete_nci_cogs = SSHOperator(
+            task_id=f'delete_nci_cogs_{product}',
+            # Remove cog converted files after aws s3 sync
+            command=dedent(COMMON + """
+            rm -rf "{{work_dir}}"
+            """),
+            params={'product': product},
+        )
 
-
+        download_s3_inventory >> generate_work_list >> bulk_cog_convert >> wait_for_cog_convert
+        wait_for_cog_convert >> validate_cogs >> upload_to_s3 >> delete_nci_cogs

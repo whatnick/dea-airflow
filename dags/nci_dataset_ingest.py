@@ -1,3 +1,11 @@
+"""
+# Ingest Collection 2 ARD Landsat Scenes to NetCDF
+
+This DAG executes everything using Gadi at the NCI.
+
+All steps except the k
+"""
+import os
 from textwrap import dedent
 from airflow import DAG
 from airflow.contrib.operators.ssh_operator import SSHOperator
@@ -15,6 +23,11 @@ INGEST_PRODUCTS = {
     'ls7_pq_scene': 'ls7_pq_albers',
 }
 
+NCI_MODULE = os.environ.get(
+    "NCI_MODULE",
+    'dea/unstable'
+)
+
 default_args = {
     'owner': 'Damien Ayers',
     'depends_on_past': False,
@@ -27,7 +40,7 @@ default_args = {
     'params': {
         'project': 'v10',
         'queue': 'normal',
-        'module': 'dea/unstable',
+        'module': NCI_MODULE,
         'year': '2020',
         'queue_size': '10000',
     }
