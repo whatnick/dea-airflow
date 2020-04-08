@@ -38,13 +38,12 @@ dag = DAG("k8s_s2_nrt_orchestrate", default_args=DEFAULT_ARGS, schedule_interval
 
 with dag:
     START = DummyOperator(task_id="s3_index_publish")
-
     INDEXING = KubernetesPodOperator(
         namespace="processing",
-        image="Python:3.6",
-        cmds=["Python", "-c"],
+        image="opendatacube/datacube-index:0.1.45",
+        cmds=["python", "-c"],
         arguments=["print('hello world')"],
-        labels={"foo": "bar"},
+        labels={"step": "index"},
         name="datacube-index",
         task_id="indexing-task",
         get_logs=True,
