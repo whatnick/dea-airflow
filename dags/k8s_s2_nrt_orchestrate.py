@@ -33,7 +33,11 @@ DEFAULT_ARGS = {
     "retry_delay": timedelta(minutes=5),
 }
 
-dag = DAG("k8s_s2_nrt_orchestrate", default_args=DEFAULT_ARGS, schedule_interval=timedelta(hours=3))
+dag = DAG("k8s_s2_nrt_orchestrate",
+          default_args=DEFAULT_ARGS,
+          schedule_interval=timedelta(hours=12),
+          catchup=False
+          )
 
 
 with dag:
