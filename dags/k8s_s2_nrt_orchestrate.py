@@ -43,7 +43,7 @@ with dag:
         image="opendatacube/datacube-index:0.1.45",
         cmds=["python", "-c"],
         arguments=["print('hello world')"],
-        labels={"step": "index"},
+        labels={"step": "s3-to-rds index"},
         name="datacube-index",
         task_id="indexing-task",
         get_logs=True,
@@ -51,10 +51,10 @@ with dag:
 
     UPDATE_RANGES = KubernetesPodOperator(
         namespace="processing",
-        image="ubuntu:1604",
-        cmds=["Python", "-c"],
+        image="opendatacube/ows:0.13.1",
+        cmds=["python", "-c"],
         arguments=["print('hello world')"],
-        labels={"foo": "bar"},
+        labels={"step": "ows update ranges"},
         name="ows-update-ranges",
         task_id="update-ranges-task",
         get_logs=True,
@@ -62,10 +62,10 @@ with dag:
 
     SUMMARY = KubernetesPodOperator(
         namespace="processing",
-        image="ubuntu:1604",
-        cmds=["Python", "-c"],
+        image="opendatacube/dashboard:2.1.6",
+        cmds=["python", "-c"],
         arguments=["print('hello world')"],
-        labels={"foo": "bar"},
+        labels={"step": "explorer progressive summary"},
         name="explorer-summary",
         task_id="explorer-summary-task",
         get_logs=True,
