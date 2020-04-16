@@ -48,6 +48,8 @@ with dag:
         namespace="processing",
         image="opendatacube/datacube-index:0.1.62",
         cmds=["s3-to-dc"],
+        # TODO : Assume kube2iam role via annotations
+        annotations={},
         env_vars={"AWS_DEFAULT_REGION": "ap-southeast-2"},
         # TODO: Collect form JSON used to trigger DAG
         arguments=[
