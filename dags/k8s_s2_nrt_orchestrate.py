@@ -32,7 +32,7 @@ DEFAULT_ARGS = {
     "email_on_retry": False,
     "retries": 1,
     "retry_delay": timedelta(minutes=5),
-    "secrets": [Secret('env','DB_HOSTNAME',"ows-db")]
+    "secrets": [Secret('env', 'DB_HOSTNAME', "ows-db")]
 }
 
 dag = DAG("k8s_s2_nrt_orchestrate",
@@ -48,6 +48,7 @@ with dag:
         namespace="processing",
         image="opendatacube/datacube-index:0.1.62",
         cmds=["s3-to-dc"],
+        env_vars={"AWS_DEFAULT_REGION": "ap-southeast-2"},
         # TODO: Collect form JSON used to trigger DAG
         arguments=[
             "s3://dea-public-data/cemp_insar/insar/displacement/alos//**/*.yaml",
