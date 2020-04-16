@@ -19,6 +19,7 @@ from datetime import datetime, timedelta
 
 from airflow import DAG
 from airflow.contrib.operators.kubernetes_pod_operator import KubernetesPodOperator
+from airflow.contrib.kubernetes.secret import Secret
 from airflow.operators.dummy_operator import DummyOperator
 
 
@@ -31,6 +32,7 @@ DEFAULT_ARGS = {
     "email_on_retry": False,
     "retries": 1,
     "retry_delay": timedelta(minutes=5),
+    "secrets": [Secret('env','DB_HOSTNAME',"ows-db")]
 }
 
 dag = DAG("k8s_s2_nrt_orchestrate",
@@ -44,9 +46,17 @@ with dag:
     START = DummyOperator(task_id="s3_index_publish")
     INDEXING = KubernetesPodOperator(
         namespace="processing",
-        image="opendatacube/datacube-index:0.1.45",
-        cmds=["python", "-c"],
-        arguments=["print('hello world')"],
+        image="opendatacube/datacube-index:0.1.62",
+        cmds=["s3-to-dc"],
+        # TODO: Collect form JSON used to trigger DAG
+        arguments=[
+            "s3://dea-public-data/cemp_insar/insar/displacement/alos//**/*.yaml",
+            "cemp_insar_alos_displacement",
+            # "{{ dag_run.conf.s3_glob }}", # TODO: Jinja templates for arguments
+            # "{{ dag_run.conf.product }}"
+        ],
+        # TODO: Use secrets to send DB Creds
+        # TODO: Lift secrets into environment variables for datacube
         labels={"step": "s3-to-rds index"},
         name="datacube-index",
         task_id="indexing-task",
