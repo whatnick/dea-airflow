@@ -57,7 +57,7 @@ with dag:
         ],
         # TODO: Use secrets to send DB Creds
         # TODO: Lift secrets into environment variables for datacube
-        labels={"step": "s3-to-rds index"},
+        labels={"step": "s3-to-rds"},
         name="datacube-index",
         task_id="indexing-task",
         get_logs=True,
@@ -68,7 +68,7 @@ with dag:
         image="opendatacube/ows:0.13.1",
         cmds=["python", "-c"],
         arguments=["print('hello world')"],
-        labels={"step": "ows update ranges"},
+        labels={"step": "ows"},
         name="ows-update-ranges",
         task_id="update-ranges-task",
         get_logs=True,
@@ -79,7 +79,7 @@ with dag:
         image="opendatacube/dashboard:2.1.6",
         cmds=["python", "-c"],
         arguments=["print('hello world')"],
-        labels={"step": "explorer progressive summary"},
+        labels={"step": "explorer"},
         name="explorer-summary",
         task_id="explorer-summary-task",
         get_logs=True,
