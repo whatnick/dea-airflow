@@ -100,9 +100,14 @@ with dag:
 
     UPDATE_RANGES = KubernetesPodOperator(
         namespace="processing",
-        image="opendatacube/ows:0.13.1",
-        cmds=["python", "-c"],
-        arguments=["print('hello world')"],
+        image="opendatacube/ows:0.13.3-unstable.5.g86139b5",
+        cmds=["datacube-ows-update"],
+        arguments=["--help"],
+        env_vars={
+            # TODO: Pass these via templated params in DAG Run
+            "DB_HOSTNAME": "database.local",
+            "DB_DATABASE": "ows",
+        },
         labels={"step": "ows"},
         name="ows-update-ranges",
         task_id="update-ranges-task",
@@ -112,8 +117,14 @@ with dag:
     SUMMARY = KubernetesPodOperator(
         namespace="processing",
         image="opendatacube/dashboard:2.1.6",
-        cmds=["python", "-c"],
-        arguments=["print('hello world')"],
+        cmds=["cubedash-gen"],
+        arguments=["--help"],
+        # TODO : Make these params DRY
+        env_vars={
+            # TODO: Pass these via templated params in DAG Run
+            "DB_HOSTNAME": "database.local",
+            "DB_DATABASE": "ows",
+        },
         labels={"step": "explorer"},
         name="explorer-summary",
         task_id="explorer-summary-task",
