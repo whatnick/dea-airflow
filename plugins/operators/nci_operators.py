@@ -4,22 +4,8 @@ from io import StringIO
 from airflow import AirflowException
 from airflow.contrib.hooks.ssh_hook import SSHHook
 from airflow.contrib.operators.sftp_operator import _make_intermediate_dirs
-from airflow.contrib.operators.ssh_operator import SSHOperator
 from airflow.models import BaseOperator
-from airflow.plugins_manager import AirflowPlugin
-from airflow.operators.sensors import BaseSensorOperator
 from airflow.utils.decorators import apply_defaults
-
-
-# This isn't necessary, can call qsub directly, and set do_xcom_push=True the job id
-class SubmitPBSJob(SSHOperator):
-
-    @apply_defaults
-    def __init__(self, *args, **kwargs):
-        super(SubmitPBSJob).__init__(*args, **kwargs)
-
-    def execute(self, context):
-        pass
 
 
 class TemplateToSFTPOperator(BaseOperator):
@@ -90,5 +76,3 @@ class TemplateToSFTPOperator(BaseOperator):
                                    .format(self.remote_filepath, str(e)))
 
         return self.remote_filepath
-
-
