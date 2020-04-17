@@ -1,12 +1,15 @@
+"""
+# Rebuild `dea/unstable` module on the NCI
+
+"""
 from airflow import DAG
 from airflow.contrib.operators.ssh_operator import SSHOperator
-from airflow.operators.dummy_operator import DummyOperator
 from datetime import datetime, timedelta
 
 default_args = {
-    'owner': 'Damien Ayers',
+    'owner': 'dayers',
     'start_date': datetime(2020, 3, 12),
-    'retries': 0,
+    'retries': 1,
     'retry_delay': timedelta(minutes=1),
     'timeout': 1200,  # For running SSH Commands
 }
