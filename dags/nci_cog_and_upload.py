@@ -205,7 +205,7 @@ with dag:
             aws s3 sync "{{work_dir}}/out/{{ params.prefix_path }}" {{ params.dest }}{{ params.prefix_path }} \\
             --exclude '*' --include '*.yaml'
             """),
-            hostname='gadi-dm.nci.org.au',
+            remote_host='gadi-dm.nci.org.au',
             params={'product': product,
                     'aws_conn': aws_connection.get_credentials(),
                     'dest': DEST,
