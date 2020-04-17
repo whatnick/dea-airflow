@@ -77,7 +77,7 @@ with dag:
         cmds=["s3-to-dc"],
         # Assume kube2iam role via annotations
         # TODO: Pass this via DAG parameters
-        annotations={"iam.amazonaws.com/role": "dea-dev-eks-orchestration"},
+        annotations={"iam.amazonaws.com/role": "dea-dev-eks-wms"},
         env_vars={
             "AWS_DEFAULT_REGION": "ap-southeast-2",
             # TODO: Pass these via templated params in DAG Run
