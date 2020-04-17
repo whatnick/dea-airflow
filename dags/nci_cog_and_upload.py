@@ -8,13 +8,20 @@ This DAG runs tasks on Gadi at the NCI. It:
  * runs a batch convert of NetCDF to COG (Inside a scheduled PBS job)
  * Uploads the COGs to S3
 
+There is currently a manual step required after the COGs are generated
+and before they are uploaded. Once the files are spot checked, the
+'manual_sign_off_...' task should be selected, and marked as **Success**
+for the DAG to continue running.
+
 """
 import os
+from datetime import datetime, timedelta
 from textwrap import dedent
 
-from airflow import DAG
+from airflow import DAG, AirflowException
+from airflow.contrib.hooks.aws_hook import AwsHook
 from airflow.contrib.operators.ssh_operator import SSHOperator
-from datetime import datetime, timedelta
+from airflow.operators.python_operator import PythonOperator
 
 from sensors.pbs_job_complete_sensor import PBSJobSensor
 
@@ -28,14 +35,24 @@ NCI_MODULE = os.environ.get(
     'dea/unstable'
 )
 
+# TODO: This is duplicated from the configuration file for dea-cogger
+# It's much better to specify a more specific path in S3 otherwise sync
+# seems to try to traverse the whole bucket.
 COG_S3PREFIX_PATH = {
-    'wofs_albers': f'{DEST}/WOfS/WOFLs/v2.1.5/combined',
-    'ls8_fc_albers': f'{DEST}/dea-public-data/fractional-cover/fc/v2.2.1/ls8',
-    'ls7_fc_albers': f'{DEST}/dea-public-data/fractional-cover/fc/v2.2.1/ls7'
+    'wofs_albers': 'WOfS/WOFLs/v2.1.5/combined/',
+    'ls8_fc_albers': 'fractional-cover/fc/v2.2.1/ls8/',
+    'ls7_fc_albers': 'fractional-cover/fc/v2.2.1/ls7/'
 }
 
+TIMEOUT = timedelta(days=1)
+
+
+def task_to_fail():
+    raise AirflowException("Please change this step to success to continue")
+
+
 default_args = {
-    'owner': 'Damien Ayers',
+    'owner': 'dayers',
     'start_date': datetime(2020, 3, 12),
     'retries': 0,
     'retry_delay': timedelta(minutes=1),
@@ -55,16 +72,16 @@ dag = DAG(
     catchup=False,
     schedule_interval=None,
     template_searchpath='templates/',
+    max_active_runs=1,
     tags=['nci'],
 )
 
 with dag:
-    for product, upload_path in COG_S3PREFIX_PATH.items():
+    for product, prefix_path in COG_S3PREFIX_PATH.items():
         COMMON = """
-                {% set work_dir = '/g/data/v10/work/cog/' + params.product + '/' + ts_nodash %}
-                module load {{params.module}}
-              
-        """
+            {% set work_dir = '/g/data/v10/work/cog/' + params.product + '/' + ts_nodash -%}
+            module load {{params.module}}
+            set - eux"""
         download_s3_inventory = SSHOperator(
             task_id=f'download_s3_inventory_{product}',
             command=dedent(COMMON + '''
@@ -79,19 +96,32 @@ with dag:
             command=dedent(COMMON + """
                 cd {{work_dir}}
 
-                dea-cogger generate-work-list --product-name "{{params.product}}" \
-                 --output-dir "{{work_dir}}" --s3-list  "{{params.product}}_s3_inv_list.txt" \
+                dea-cogger generate-work-list --product-name "{{params.product}}" \\
+                 --output-dir "{{work_dir}}" --s3-list  "{{params.product}}_s3_inv_list.txt" \\
                  --time-range "time in [2018-01-01, 2020-12-31]"
             """),
             # --time-range "time in [{{prev_ds}}, {{ds}}]"
             timeout=60 * 60 * 2,
             params={'product': product},
         )
+        manual_sign_off = PythonOperator(
+            task_id=f"manual_sign_off_{product}",
+            python_callable=task_to_fail,
+            retries=1,
+            max_retry_delay=TIMEOUT,
+        )
+        manual_sign_off.doc_md = dedent("""
+                ## Instructions
+                Perform some manual checks that the number of COGs to be generated seems to be about right.
+                
+                Can do spot checks that files don't already exist in S3.
+            """)
         submit_task_id = f'submit_cog_convert_job_{product}'
-        bulk_cog_convert = SSHOperator(
+        submit_bulk_cog_convert = SSHOperator(
             task_id=submit_task_id,
             command=dedent(COMMON + """
                 cd {{work_dir}}
+                mkdir out
                 
                 qsub <<EOF
                 #!/bin/bash
@@ -106,8 +136,8 @@ with dag:
                 module load {{params.module}}
                 module load openmpi/3.1.4
 
-                mpirun --tag-output dea-cogger mpi-convert --product-name "{{params.product}}" 
-                 --output-dir "{{work_dir}}" {{params.product}}_file_list.txt
+                mpirun --tag-output dea-cogger mpi-convert --product-name "{{params.product}}" \\
+                 --output-dir "{{work_dir}}/out/" {{params.product}}_file_list.txt
                 
                 EOF
             """),
@@ -141,10 +171,12 @@ with dag:
                 module load {{params.module}}
                 module load openmpi/3.1.4
 
-                mpirun --tag-output dea-cogger verify --rm-broken "{{work_dir}}"
+                mpirun --tag-output dea-cogger verify --rm-broken "{{work_dir}}/out"
                 
                 EOF
             """),
+            do_xcom_push=True,
+            timeout=60 * 5,
             params={'product': product},
         )
         wait_for_validate_job = PBSJobSensor(
@@ -154,24 +186,41 @@ with dag:
 
         )
 
+        # public_data_upload = Connection(conn_id='dea_public_data_upload')
+        aws_connection = AwsHook(aws_conn_id='dea_public_data_upload')
         upload_to_s3 = SSHOperator(
             task_id=f'upload_to_s3_{product}',
             command=dedent(COMMON + """
-            aws s3 sync "{{work_dir}}" "{{params.upload_path}}" \
-            --exclude "*.pickle" --exclude "*.txt" --exclude "*file_list*" --exclude "*.log"
+
+            export AWS_ACCESS_KEY_ID={{params.aws_conn.access_key}}
+            export AWS_SECRET_ACCESS_KEY={{params.aws_conn.secret_key}}
+
+            # See what AWS creds we've got
+            aws sts get-caller-identity
+            
+            aws s3 sync "{{work_dir}}/out/{{ params.prefix_path }}" {{ params.dest }}{{ params.prefix_path }} \\
+            --exclude '*.yaml'
+            
+            # Upload YAMLs second, and only if uploading the COGs worked
+            aws s3 sync "{{work_dir}}/out/{{ params.prefix_path }}" {{ params.dest }}{{ params.prefix_path }} \\
+            --exclude '*' --include '*.yaml'
             """),
+            hostname='gadi-dm.nci.org.au',
             params={'product': product,
-                    'upload_path': upload_path},
+                    'aws_conn': aws_connection.get_credentials(),
+                    'dest': DEST,
+                    'prefix_path': prefix_path},
         )
 
         delete_nci_cogs = SSHOperator(
             task_id=f'delete_nci_cogs_{product}',
             # Remove cog converted files after aws s3 sync
             command=dedent(COMMON + """
-            rm -rf "{{work_dir}}"
+            rm -vrf "{{work_dir}}/out"
             """),
             params={'product': product},
         )
 
-        download_s3_inventory >> generate_work_list >> bulk_cog_convert >> wait_for_cog_convert
-        wait_for_cog_convert >> validate_cogs >> upload_to_s3 >> delete_nci_cogs
+        download_s3_inventory >> generate_work_list >> manual_sign_off >> submit_bulk_cog_convert
+        submit_bulk_cog_convert >> wait_for_cog_convert >> validate_cogs >> wait_for_validate_job
+        wait_for_validate_job >> upload_to_s3 >> delete_nci_cogs
