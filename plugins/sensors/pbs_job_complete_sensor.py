@@ -14,9 +14,11 @@ class SSHRunMixin:
     def __init__(self,
                  ssh_conn_id=None,
                  ssh_hook=None,
+                 mode='reschedule',
+                 poke_interval=5 * 60,
                  *args,
                  **kwargs):
-        super().__init__(*args, **kwargs)
+        super().__init__(*args, mode=mode, poke_interval=poke_interval, **kwargs)
         self.log.info('Inside SSHRunMixin Init Function')
         self.ssh_hook = ssh_hook
         self.ssh_conn_id = ssh_conn_id
