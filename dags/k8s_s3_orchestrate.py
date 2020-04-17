@@ -32,34 +32,66 @@ DEFAULT_ARGS = {
     "email_on_retry": False,
     "retries": 1,
     "retry_delay": timedelta(minutes=5),
-    "secrets": [Secret('env', 'DB_HOSTNAME', "ows-db")]
+    # Use K8S secrets to send DB Creds
+    # Lift secrets into environment variables for datacube
+    "secrets": [
+        Secret('env', 'DB_USERNAME', "ows-db", "postgres-username"),
+        Secret('env', 'DB_PASSWORD', "ows-db", "postgres-password")
+    ]
 }
 
-dag = DAG("k8s_s2_nrt_orchestrate",
+dag = DAG("k8s_s3_orchestrate",
           default_args=DEFAULT_ARGS,
-          schedule_interval=timedelta(hours=12),
+          schedule_interval=None,
           catchup=False
           )
 
 
 with dag:
     START = DummyOperator(task_id="s3_index_publish")
+
+    # TODO: Bootstrap if targeting a Blank DB
+    # TODO: Initialize Datacube
+    # TODO: Add metadata types
+    # TODO: Add products
+    BOOTSTRAP = KubernetesPodOperator(
+        namespace="processing",
+        image="opendatacube/datacube-index:v0.0.1",
+        cmds=["datacube","system","check"],
+        # TODO : Assume kube2iam role via annotations
+        annotations={},
+        env_vars={
+            "AWS_DEFAULT_REGION": "ap-southeast-2",
+            # TODO: Pass these via templated params in DAG Run
+            "DB_HOSTNAME" : "database.local",
+            "DB_DATABASE" : "ows"
+        },
+        labels={"step": "bootstrap"},
+        name="odc-bootstrap",
+        task_id="bootstrap-task",
+        get_logs=True,
+    )
+
     INDEXING = KubernetesPodOperator(
         namespace="processing",
-        image="opendatacube/datacube-index:0.1.62",
+        image="opendatacube/datacube-index:v0.0.1",
         cmds=["s3-to-dc"],
         # TODO : Assume kube2iam role via annotations
         annotations={},
-        env_vars={"AWS_DEFAULT_REGION": "ap-southeast-2"},
+        env_vars={
+            "AWS_DEFAULT_REGION": "ap-southeast-2",
+            # TODO: Pass these via templated params in DAG Run
+            "DB_HOSTNAME" : "database.local",
+            "DB_DATABASE" : "ows"
+        },
         # TODO: Collect form JSON used to trigger DAG
         arguments=[
             "s3://dea-public-data/cemp_insar/insar/displacement/alos//**/*.yaml",
             "cemp_insar_alos_displacement",
-            # "{{ dag_run.conf.s3_glob }}", # TODO: Jinja templates for arguments
+            # TODO: Jinja templates for arguments
+            # "{{ dag_run.conf.s3_glob }}",
             # "{{ dag_run.conf.product }}"
         ],
-        # TODO: Use secrets to send DB Creds
-        # TODO: Lift secrets into environment variables for datacube
         labels={"step": "s3-to-rds"},
         name="datacube-index",
         task_id="indexing-task",
@@ -90,7 +122,8 @@ with dag:
 
     COMPLETE = DummyOperator(task_id="all_done")
 
-    START >> INDEXING
+    START >> BOOTSTRAP
+    BOOTSTRAP >> INDEXING
     INDEXING >> UPDATE_RANGES
     INDEXING >> SUMMARY
     UPDATE_RANGES >> COMPLETE
