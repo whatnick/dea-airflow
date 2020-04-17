@@ -35,16 +35,17 @@ DEFAULT_ARGS = {
     # Use K8S secrets to send DB Creds
     # Lift secrets into environment variables for datacube
     "secrets": [
-        Secret('env', 'DB_USERNAME', "ows-db", "postgres-username"),
-        Secret('env', 'DB_PASSWORD', "ows-db", "postgres-password")
-    ]
+        Secret("env", "DB_USERNAME", "ows-db", "postgres-username"),
+        Secret("env", "DB_PASSWORD", "ows-db", "postgres-password"),
+    ],
 }
 
-dag = DAG("k8s_s3_orchestrate",
-          default_args=DEFAULT_ARGS,
-          schedule_interval=None,
-          catchup=False
-          )
+dag = DAG(
+    "k8s_s3_orchestrate",
+    default_args=DEFAULT_ARGS,
+    schedule_interval=None,
+    catchup=False,
+)
 
 
 with dag:
@@ -57,14 +58,12 @@ with dag:
     BOOTSTRAP = KubernetesPodOperator(
         namespace="processing",
         image="opendatacube/datacube-index:v0.0.1",
-        cmds=["datacube","system","check"],
-        # TODO : Assume kube2iam role via annotations
-        annotations={},
+        cmds=["datacube", "system", "check"],
         env_vars={
             "AWS_DEFAULT_REGION": "ap-southeast-2",
             # TODO: Pass these via templated params in DAG Run
-            "DB_HOSTNAME" : "database.local",
-            "DB_DATABASE" : "ows"
+            "DB_HOSTNAME": "database.local",
+            "DB_DATABASE": "ows",
         },
         labels={"step": "bootstrap"},
         name="odc-bootstrap",
@@ -76,13 +75,14 @@ with dag:
         namespace="processing",
         image="opendatacube/datacube-index:v0.0.1",
         cmds=["s3-to-dc"],
-        # TODO : Assume kube2iam role via annotations
-        annotations={},
+        # Assume kube2iam role via annotations
+        # TODO: Pass this via DAG parameters
+        annotations={"iam.amazonaws.com/role": "dea-dev-eks-orchestration"},
         env_vars={
             "AWS_DEFAULT_REGION": "ap-southeast-2",
             # TODO: Pass these via templated params in DAG Run
-            "DB_HOSTNAME" : "database.local",
-            "DB_DATABASE" : "ows"
+            "DB_HOSTNAME": "database.local",
+            "DB_DATABASE": "ows",
         },
         # TODO: Collect form JSON used to trigger DAG
         arguments=[
