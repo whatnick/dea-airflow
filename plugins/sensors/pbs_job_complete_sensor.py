@@ -1,12 +1,15 @@
 import json
 from base64 import b64decode
 from json import JSONDecodeError
+from logging import getLogger
 from select import select
 
 from airflow import AirflowException
 from airflow.contrib.hooks.ssh_hook import SSHHook
 from airflow.sensors.base_sensor_operator import BaseSensorOperator
 from airflow.utils.decorators import apply_defaults
+
+log = getLogger(__name__)
 
 
 class SSHRunMixin:
@@ -94,7 +97,8 @@ class SSHRunMixin:
                 exit_status = stdout.channel.recv_exit_status()
 
                 return exit_status, agg_stdout.decode('utf-8')
-
+        except EOFError:
+            raise
         except Exception as e:
             raise AirflowException("PBS Job Completion sensor error: {0}".format(str(e)))
 
@@ -135,7 +139,14 @@ class PBSJobSensor(SSHRunMixin, BaseSensorOperator):
             self.pbs_job_id = pbs_job_id
             self.log.info('Trusting given pbs_job_id: %s', self.pbs_job_id)
 
-        ret_val, output = self._run_ssh_command_and_return_output(f'qstat -fx -F json {self.pbs_job_id}')
+        try:
+            ret_val, output = self._run_ssh_command_and_return_output(f'qstat -fx -F json {self.pbs_job_id}')
+        except EOFError:
+            # Sometimes qstat hangs and doesn't complete it's output. Be accepting of this,
+            # and simply try again next Sensor interval.
+            self.log.exception('Failed getting output from qstat')
+            return False
+
         output = output.replace("\'", "'")
         try:
             result = json.loads(output)
@@ -149,6 +160,11 @@ class PBSJobSensor(SSHRunMixin, BaseSensorOperator):
             if exit_status == 0:
                 return True
             else:
+                # TODO: I thought this would stop retries, but it doesn't. We need to either set
+                # retry to 0, or do something fancy here, since
+                # https://github.com/apache/airflow/pull/7133 isn't implemented yet.
+                # The only way to /not/ retry is by setting the `task_instance.max_tries = 0`
+                # as seen here: https://gist.github.com/robinedwards/3f2ec4336e1ced084547d24d7e7ead3a
                 raise AirflowException('PBS Job Failed %s', self.pbs_job_id)
         else:
             return False
