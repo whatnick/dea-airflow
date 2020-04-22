@@ -32,6 +32,12 @@ DEFAULT_ARGS = {
     "email_on_retry": False,
     "retries": 1,
     "retry_delay": timedelta(minutes=5),
+    "env_vars" : {
+        "AWS_DEFAULT_REGION": "ap-southeast-2",
+        # TODO: Pass these via templated params in DAG Run
+        "DB_HOSTNAME": "database.local",
+        "DB_DATABASE": "ows-index",
+    },
     # Use K8S secrets to send DB Creds
     # Lift secrets into environment variables for datacube
     "secrets": [
@@ -59,12 +65,6 @@ with dag:
         namespace="processing",
         image="opendatacube/datacube-index:v0.0.1",
         cmds=["datacube", "system", "check"],
-        env_vars={
-            "AWS_DEFAULT_REGION": "ap-southeast-2",
-            # TODO: Pass these via templated params in DAG Run
-            "DB_HOSTNAME": "database.local",
-            "DB_DATABASE": "ows",
-        },
         labels={"step": "bootstrap"},
         name="odc-bootstrap",
         task_id="bootstrap-task",
@@ -78,12 +78,6 @@ with dag:
         # Assume kube2iam role via annotations
         # TODO: Pass this via DAG parameters
         annotations={"iam.amazonaws.com/role": "dea-dev-eks-wms"},
-        env_vars={
-            "AWS_DEFAULT_REGION": "ap-southeast-2",
-            # TODO: Pass these via templated params in DAG Run
-            "DB_HOSTNAME": "database.local",
-            "DB_DATABASE": "ows",
-        },
         # TODO: Collect form JSON used to trigger DAG
         arguments=[
             "s3://dea-public-data/cemp_insar/insar/displacement/alos//**/*.yaml",
@@ -103,11 +97,6 @@ with dag:
         image="opendatacube/ows:0.13.3-unstable.5.g86139b5",
         cmds=["datacube-ows-update"],
         arguments=["--help"],
-        env_vars={
-            # TODO: Pass these via templated params in DAG Run
-            "DB_HOSTNAME": "database.local",
-            "DB_DATABASE": "ows",
-        },
         labels={"step": "ows"},
         name="ows-update-ranges",
         task_id="update-ranges-task",
@@ -119,12 +108,6 @@ with dag:
         image="opendatacube/dashboard:2.1.6",
         cmds=["cubedash-gen"],
         arguments=["--help"],
-        # TODO : Make these params DRY
-        env_vars={
-            # TODO: Pass these via templated params in DAG Run
-            "DB_HOSTNAME": "database.local",
-            "DB_DATABASE": "ows",
-        },
         labels={"step": "explorer"},
         name="explorer-summary",
         task_id="explorer-summary-task",
