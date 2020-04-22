@@ -32,6 +32,11 @@ DEFAULT_ARGS = {
     "email_on_retry": False,
     "retries": 1,
     "retry_delay": timedelta(minutes=5),
+    "env_vars" : {
+        # TODO: Pass these via templated params in DAG Run
+        "DB_HOSTNAME": "database.local",
+        "DB_DATABASE": "ows-index",
+    },
     # Use K8S secrets to send DB Creds
     # Lift secrets into environment variables for datacube
     "secrets": [
@@ -59,11 +64,6 @@ with dag:
         namespace="processing",
         image="opendatacube/datacube-index:v0.0.2",
         cmds=["datacube", "system", "check"],
-        env_vars={
-            # TODO: Pass these via templated params in DAG Run
-            "DB_HOSTNAME": "database.local",
-            "DB_DATABASE": "ows",
-        },
         labels={"step": "bootstrap"},
         name="odc-bootstrap",
         task_id="bootstrap-task",
@@ -74,11 +74,6 @@ with dag:
         namespace="processing",
         image="opendatacube/datacube-index:v0.0.2",
         cmds=["thredds-to-dc"],
-        env_vars={
-            # TODO: Pass these via templated params in DAG Run
-            "DB_HOSTNAME": "database.local",
-            "DB_DATABASE": "ows",
-        },
         # TODO: Collect form JSON used to trigger DAG
         arguments=[
             "http://dapds00.nci.org.au/thredds/catalog/if87/2018-11-29/",
@@ -98,11 +93,6 @@ with dag:
         image="opendatacube/ows:0.13.3-unstable.5.g86139b5",
         cmds=["datacube-ows-update"],
         arguments=["--help"],
-        env_vars={
-            # TODO: Pass these via templated params in DAG Run
-            "DB_HOSTNAME": "database.local",
-            "DB_DATABASE": "ows",
-        },
         labels={"step": "ows"},
         name="ows-update-ranges",
         task_id="update-ranges-task",
@@ -114,12 +104,6 @@ with dag:
         image="opendatacube/dashboard:2.1.6",
         cmds=["cubedash-gen"],
         arguments=["--help"],
-        # TODO : Make these params DRY
-        env_vars={
-            # TODO: Pass these via templated params in DAG Run
-            "DB_HOSTNAME": "database.local",
-            "DB_DATABASE": "ows",
-        },
         labels={"step": "explorer"},
         name="explorer-summary",
         task_id="explorer-summary-task",
