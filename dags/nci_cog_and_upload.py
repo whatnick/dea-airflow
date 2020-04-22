@@ -8,8 +8,9 @@ This DAG runs tasks on Gadi at the NCI. It:
  * runs a batch convert of NetCDF to COG (Inside a scheduled PBS job)
  * Uploads the COGs to S3
 
-There is currently a manual step required after the COGs are generated
-and before they are uploaded. Once the files are spot checked, the
+There is currently a manual step required before the COGs are generated,
+since comparing what is there with what we want is easy
+to get wrong. Once the list of files to create is spot checked, the
 'manual_sign_off_...' task should be selected, and marked as **Success**
 for the DAG to continue running.
 
@@ -57,6 +58,8 @@ default_args = {
     'retries': 0,
     'retry_delay': timedelta(minutes=1),
     'ssh_conn_id': 'lpgs_gadi',
+    'email_on_failure': True,
+    'email': 'damien.ayers@ga.gov.au',
     'params': {
         'project': 'v10',
         'queue': 'normal',
@@ -79,9 +82,9 @@ dag = DAG(
 with dag:
     for product, prefix_path in COG_S3PREFIX_PATH.items():
         COMMON = """
-            {% set work_dir = '/g/data/v10/work/cog/' + params.product + '/' + ts_nodash -%}
-            module load {{params.module}}
-            set - eux"""
+                {% set work_dir = '/g/data/v10/work/cog/' + params.product + '/' + ts_nodash -%}
+                module load {{params.module}}
+                set - eux"""
         download_s3_inventory = SSHOperator(
             task_id=f'download_s3_inventory_{product}',
             command=dedent(COMMON + '''
@@ -98,7 +101,7 @@ with dag:
 
                 dea-cogger generate-work-list --product-name "{{params.product}}" \\
                  --output-dir "{{work_dir}}" --s3-list  "{{params.product}}_s3_inv_list.txt" \\
-                 --time-range "time in [2018-01-01, 2020-12-31]"
+                 --time-range "time in [2019-01-01, 2020-12-31]"
             """),
             # --time-range "time in [{{prev_ds}}, {{ds}}]"
             timeout=60 * 60 * 2,
@@ -114,7 +117,9 @@ with dag:
                 ## Instructions
                 Perform some manual checks that the number of COGs to be generated seems to be about right.
                 
-                Can do spot checks that files don't already exist in S3.
+                You can also do spot checks that files don't already exist in S3.
+                
+                Once you're happy, mark this job as **Success** for the DAG to continue running.
             """)
         submit_task_id = f'submit_cog_convert_job_{product}'
         submit_bulk_cog_convert = SSHOperator(
