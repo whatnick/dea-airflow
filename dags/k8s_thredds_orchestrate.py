@@ -1,10 +1,10 @@
 """DAG to periodically/one-shot update explorer and ows schemas in RDS
-after a given Dataset has been indexed from S3.
+after a given Dataset has been indexed from Thredds
 - Run Explorer summaries
-- Run ows update ranges for NRT products
-- Run ows update ranges for NRT multi-products
+- Run ows update ranges for ARD products
+- Run ows update ranges for ARD multi-products
 
-This DAG uses k8s executors and pre-existing pods in cluster with relevant tooling
+This DAG uses k8s executors and fresh pods in cluster with relevant tooling
 and configuration installed
 
 set start_date to something real, not datetime.utcnow() because that'll break things
@@ -41,7 +41,7 @@ DEFAULT_ARGS = {
 }
 
 dag = DAG(
-    "k8s_s3_orchestrate",
+    "k8s_thredds_orchestrate",
     default_args=DEFAULT_ARGS,
     schedule_interval=None,
     catchup=False,
@@ -49,7 +49,7 @@ dag = DAG(
 
 
 with dag:
-    START = DummyOperator(task_id="s3_index_publish")
+    START = DummyOperator(task_id="thredds_index_publish")
 
     # TODO: Bootstrap if targeting a Blank DB
     # TODO: Initialize Datacube
@@ -57,10 +57,9 @@ with dag:
     # TODO: Add products
     BOOTSTRAP = KubernetesPodOperator(
         namespace="processing",
-        image="opendatacube/datacube-index:v0.0.1",
+        image="opendatacube/datacube-index:v0.0.2",
         cmds=["datacube", "system", "check"],
         env_vars={
-            "AWS_DEFAULT_REGION": "ap-southeast-2",
             # TODO: Pass these via templated params in DAG Run
             "DB_HOSTNAME": "database.local",
             "DB_DATABASE": "ows",
@@ -73,26 +72,22 @@ with dag:
 
     INDEXING = KubernetesPodOperator(
         namespace="processing",
-        image="opendatacube/datacube-index:v0.0.1",
-        cmds=["s3-to-dc"],
-        # Assume kube2iam role via annotations
-        # TODO: Pass this via DAG parameters
-        annotations={"iam.amazonaws.com/role": "dea-dev-eks-wms"},
+        image="opendatacube/datacube-index:v0.0.2",
+        cmds=["thredds-to-dc"],
         env_vars={
-            "AWS_DEFAULT_REGION": "ap-southeast-2",
             # TODO: Pass these via templated params in DAG Run
             "DB_HOSTNAME": "database.local",
             "DB_DATABASE": "ows",
         },
         # TODO: Collect form JSON used to trigger DAG
         arguments=[
-            "s3://dea-public-data/cemp_insar/insar/displacement/alos//**/*.yaml",
-            "cemp_insar_alos_displacement",
+            "http://dapds00.nci.org.au/thredds/catalog/if87/2018-11-29/",
+            "s2a_ard_granule",
             # TODO: Jinja templates for arguments
-            # "{{ dag_run.conf.s3_glob }}",
+            # "{{ dag_run.conf.thredds_catalog }}",
             # "{{ dag_run.conf.product }}"
         ],
-        labels={"step": "s3-to-rds"},
+        labels={"step": "thredds-to-rds"},
         name="datacube-index",
         task_id="indexing-task",
         get_logs=True,
