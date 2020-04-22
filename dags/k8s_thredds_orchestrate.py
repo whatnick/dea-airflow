@@ -77,7 +77,7 @@ with dag:
         # TODO: Collect form JSON used to trigger DAG
         arguments=[
             "http://dapds00.nci.org.au/thredds/catalog/if87/2018-11-29/",
-            "s2a_ard_granule",
+            "s2a_level1c_granule",
             # TODO: Jinja templates for arguments
             # "{{ dag_run.conf.thredds_catalog }}",
             # "{{ dag_run.conf.product }}"
