@@ -90,7 +90,10 @@ with dag:
         arguments=[
             "{{ dag_run.conf.params}}",
             "{{ dag_run.conf.thredds_catalog }}",
-            "{{ dag_run.conf.products }}"
+            {% for product in dag_run.conf.products %}
+                "{{ product }}",
+            {% endofr %}
+                
         ],
         labels={"step": "thredds-to-rds"},
         name="datacube-index",
