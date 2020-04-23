@@ -24,6 +24,7 @@ from airflow.contrib.hooks.aws_hook import AwsHook
 from airflow.contrib.operators.ssh_operator import SSHOperator
 from airflow.operators.python_operator import PythonOperator
 
+from operators.ssh_operators import ShortCircuitSSHOperator
 from sensors.pbs_job_complete_sensor import PBSJobSensor
 
 DEST = os.environ.get(
@@ -84,7 +85,7 @@ with dag:
         COMMON = """
                 {% set work_dir = '/g/data/v10/work/cog/' + params.product + '/' + ts_nodash -%}
                 module load {{params.module}}
-                set - eux"""
+                set -eux"""
         download_s3_inventory = SSHOperator(
             task_id=f'download_s3_inventory_{product}',
             command=dedent(COMMON + '''
@@ -105,6 +106,18 @@ with dag:
             """),
             # --time-range "time in [{{prev_ds}}, {{ds}}]"
             timeout=60 * 60 * 2,
+            params={'product': product},
+        )
+        check_for_work = ShortCircuitSSHOperator(
+            task_id=f'check_for_work_{product}',
+            command=dedent(COMMON + '''
+                {% set file_list = work_dir + '/' + params.product + '_file_list.txt' -%}
+                
+                test -f {{file_list}}
+                NUM_TO_PROCESS=$(wc -l {{file_list}} | awk '{print $1}')
+                echo There are $NUM_TO_PROCESS files to process.
+                test $NUM_TO_PROCESS -gt 0
+                '''),
             params={'product': product},
         )
         # Thanks https://stackoverflow.com/questions/48580341/how-to-add-manual-tasks-in-an-apache-airflow-dag
@@ -227,6 +240,6 @@ with dag:
             params={'product': product},
         )
 
-        download_s3_inventory >> generate_work_list >> manual_sign_off >> submit_bulk_cog_convert
+        download_s3_inventory >> generate_work_list >> check_for_work >> manual_sign_off >> submit_bulk_cog_convert
         submit_bulk_cog_convert >> wait_for_cog_convert >> validate_cogs >> wait_for_validate_job
         wait_for_validate_job >> upload_to_s3 >> delete_nci_cogs
