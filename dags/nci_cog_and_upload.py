@@ -8,10 +8,10 @@ This DAG runs tasks on Gadi at the NCI. It:
  * runs a batch convert of NetCDF to COG (Inside a scheduled PBS job)
  * Uploads the COGs to S3
 
-There is currently a manual step required before the COGs are generated,
-since comparing what is there with what we want is easy
-to get wrong. Once the list of files to create is spot checked, the
-'manual_sign_off_...' task should be selected, and marked as **Success**
+There is currently a manual step required before the COGs are generated.
+
+Once the list of files to create is checked checked, the
+`manual_sign_off_<product-name>` task should be selected, and marked as **Success**
 for the DAG to continue running.
 
 """
@@ -107,11 +107,12 @@ with dag:
             timeout=60 * 60 * 2,
             params={'product': product},
         )
+        # Thanks https://stackoverflow.com/questions/48580341/how-to-add-manual-tasks-in-an-apache-airflow-dag
         manual_sign_off = PythonOperator(
             task_id=f"manual_sign_off_{product}",
             python_callable=task_to_fail,
             retries=1,
-            max_retry_delay=TIMEOUT,
+            retry_delay=TIMEOUT,
         )
         manual_sign_off.doc_md = dedent("""
                 ## Instructions
