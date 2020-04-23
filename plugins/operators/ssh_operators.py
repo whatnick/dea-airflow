@@ -4,8 +4,45 @@ from io import StringIO
 from airflow import AirflowException
 from airflow.contrib.hooks.ssh_hook import SSHHook
 from airflow.contrib.operators.sftp_operator import _make_intermediate_dirs
-from airflow.models import BaseOperator
+from airflow.models import BaseOperator, SkipMixin
 from airflow.utils.decorators import apply_defaults
+
+from common.ssh import SSHRunMixin
+
+
+class ShortCircuitSSHOperator(SSHRunMixin, BaseOperator, SkipMixin):
+    """
+    Execute an SSH command and then Optionally Short Circuit
+
+    The condition is determined by the return value of running `command`
+    on the provided SSH host..
+    """
+    template_fields = ('command',)
+
+    @apply_defaults
+    def __init__(self,
+                 command: str = None,
+                 *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.command = command
+
+    def execute(self, context):
+        ret_val, output = self.run_ssh_command_and_return_output(self.command)
+        self.log.info("SSH command return value is %s", ret_val)
+
+        if ret_val == 0:
+            self.log.info('Proceeding with downstream tasks...')
+            return
+
+        self.log.info('Skipping downstream tasks...')
+
+        downstream_tasks = context['task'].get_flat_relatives(upstream=False)
+        self.log.debug("Downstream task_ids %s", downstream_tasks)
+
+        if downstream_tasks:
+            self.skip(context['dag_run'], context['ti'].execution_date, downstream_tasks)
+
+        self.log.info("Done.")
 
 
 class TemplateToSFTPOperator(BaseOperator):
