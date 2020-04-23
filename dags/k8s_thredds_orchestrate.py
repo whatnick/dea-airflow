@@ -75,19 +75,19 @@ with dag:
         get_logs=True,
     )
 
+    """
+    {
+        "params" : "--auto-add-lineage",
+        "thredds_catalog": "http://dapds00.nci.org.au/thredds/catalog/if87/2018-11-29/",
+        "products": "s2a_ard_granule s2a_level1c_granule s2b_ard_granule s2b_level1c_granule"
+    }
+    """
     INDEXING = KubernetesPodOperator(
         namespace="processing",
         image=INDEXER_IMAGE,
         cmds=["thredds-to-dc"],
         # TODO: Collect form JSON used to trigger DAG
         arguments=[
-            """
-            {
-                "params" : "--auto-add-lineage"
-                "thredds_catalog": "http://dapds00.nci.org.au/thredds/catalog/if87/2018-11-29/",
-                "products": "s2a_ard_granule s2a_level1c_granule s2b_ard_granule s2b_level1c_granule"
-            }
-            """
             "{{ dag_run.conf.params}}",
             "{{ dag_run.conf.thredds_catalog }}",
             "{{ dag_run.conf.products }}"
