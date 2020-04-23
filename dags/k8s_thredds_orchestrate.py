@@ -32,7 +32,7 @@ DEFAULT_ARGS = {
     "email_on_retry": False,
     "retries": 1,
     "retry_delay": timedelta(minutes=5),
-    "env_vars" : {
+    "env_vars": {
         # TODO: Pass these via templated params in DAG Run
         "DB_HOSTNAME": "database.local",
         "DB_DATABASE": "ows-index",
@@ -81,10 +81,16 @@ with dag:
         cmds=["thredds-to-dc"],
         # TODO: Collect form JSON used to trigger DAG
         arguments=[
-            #"http://dapds00.nci.org.au/thredds/catalog/if87/2018-11-29/",
-            # "s2a_ard_granule",
+            """
+            {
+                "params" : "--auto-add-lineage"
+                "thredds_catalog": "http://dapds00.nci.org.au/thredds/catalog/if87/2018-11-29/",
+                "products": "s2a_ard_granule s2a_level1c_granule s2b_ard_granule s2b_level1c_granule"
+            }
+            """
+            "{{ dag_run.conf.params}}",
             "{{ dag_run.conf.thredds_catalog }}",
-            "{{ dag_run.conf.product }}"
+            "{{ dag_run.conf.products }}"
         ],
         labels={"step": "thredds-to-rds"},
         name="datacube-index",
