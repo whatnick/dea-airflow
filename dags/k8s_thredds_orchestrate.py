@@ -82,15 +82,19 @@ with dag:
         "products": "s2a_ard_granule s2a_level1c_granule s2b_ard_granule s2b_level1c_granule"
     }
     """
-    INDEX_ARGS = ["{{ dag_run.conf.params}}",
-                  "{{ dag_run.conf.thredds_catalog }}"]
-    INDEX_ARGS.extend("{{ dag_run.conf.products }}".split())
     INDEXING = KubernetesPodOperator(
         namespace="processing",
         image=INDEXER_IMAGE,
         cmds=["thredds-to-dc"],
         # TODO: Collect form JSON used to trigger DAG
-        arguments=INDEX_ARGS,
+        arguments=[
+            "{{ dag_run.conf.params}}",
+            "{{ dag_run.conf.thredds_catalog }}",
+            "{{ dag_run.conf.products[0] }}",
+            "{{ dag_run.conf.products[1] }}",
+            "{{ dag_run.conf.products[2] }}",
+            "{{ dag_run.conf.products[3] }}",
+        ],
         labels={"step": "thredds-to-rds"},
         name="datacube-index",
         task_id="indexing-task",
