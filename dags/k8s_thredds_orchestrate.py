@@ -45,11 +45,16 @@ DEFAULT_ARGS = {
     ],
 }
 
+INDEXER_IMAGE = "opendatacube/datacube-index:v0.0.3"
+OWS_IMAGE = "opendatacube/ows:0.13.3-unstable.5.g86139b5"
+EXPLORER_IMAGE = "opendatacube/dashboard:2.1.6"
+
 dag = DAG(
     "k8s_thredds_orchestrate",
     default_args=DEFAULT_ARGS,
     schedule_interval=None,
     catchup=False,
+    tags=["k8s"]
 )
 
 
@@ -62,7 +67,7 @@ with dag:
     # TODO: Add products
     BOOTSTRAP = KubernetesPodOperator(
         namespace="processing",
-        image="opendatacube/datacube-index:v0.0.2",
+        image=INDEXER_IMAGE,
         cmds=["datacube", "system", "check"],
         labels={"step": "bootstrap"},
         name="odc-bootstrap",
@@ -72,7 +77,7 @@ with dag:
 
     INDEXING = KubernetesPodOperator(
         namespace="processing",
-        image="opendatacube/datacube-index:v0.0.2",
+        image=INDEXER_IMAGE,
         cmds=["thredds-to-dc"],
         # TODO: Collect form JSON used to trigger DAG
         arguments=[
@@ -89,7 +94,7 @@ with dag:
 
     UPDATE_RANGES = KubernetesPodOperator(
         namespace="processing",
-        image="opendatacube/ows:0.13.3-unstable.5.g86139b5",
+        image=OWS_IMAGE,
         cmds=["datacube-ows-update"],
         arguments=["--help"],
         labels={"step": "ows"},
@@ -100,7 +105,7 @@ with dag:
 
     SUMMARY = KubernetesPodOperator(
         namespace="processing",
-        image="opendatacube/dashboard:2.1.6",
+        image=EXPLORER_IMAGE,
         cmds=["cubedash-gen"],
         arguments=["--help"],
         labels={"step": "explorer"},

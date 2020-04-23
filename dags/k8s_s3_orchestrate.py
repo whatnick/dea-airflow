@@ -32,7 +32,7 @@ DEFAULT_ARGS = {
     "email_on_retry": False,
     "retries": 1,
     "retry_delay": timedelta(minutes=5),
-    "env_vars" : {
+    "env_vars": {
         "AWS_DEFAULT_REGION": "ap-southeast-2",
         # TODO: Pass these via templated params in DAG Run
         "DB_HOSTNAME": "database.local",
@@ -46,11 +46,16 @@ DEFAULT_ARGS = {
     ],
 }
 
+INDEXER_IMAGE = "opendatacube/datacube-index:v0.0.3"
+OWS_IMAGE = "opendatacube/ows:0.13.3-unstable.5.g86139b5"
+EXPLORER_IMAGE = "opendatacube/dashboard:2.1.6"
+
 dag = DAG(
     "k8s_s3_orchestrate",
     default_args=DEFAULT_ARGS,
     schedule_interval=None,
     catchup=False,
+    tags=["k8s"]
 )
 
 
@@ -63,7 +68,7 @@ with dag:
     # TODO: Add products
     BOOTSTRAP = KubernetesPodOperator(
         namespace="processing",
-        image="opendatacube/datacube-index:v0.0.1",
+        image=INDEXER_IMAGE,
         cmds=["datacube", "system", "check"],
         labels={"step": "bootstrap"},
         name="odc-bootstrap",
@@ -73,18 +78,18 @@ with dag:
 
     INDEXING = KubernetesPodOperator(
         namespace="processing",
-        image="opendatacube/datacube-index:v0.0.1",
+        image=INDEXER_IMAGE,
         cmds=["s3-to-dc"],
         # Assume kube2iam role via annotations
         # TODO: Pass this via DAG parameters
         annotations={"iam.amazonaws.com/role": "dea-dev-eks-wms"},
         # TODO: Collect form JSON used to trigger DAG
         arguments=[
-            "s3://dea-public-data/cemp_insar/insar/displacement/alos//**/*.yaml",
-            "cemp_insar_alos_displacement",
-            # TODO: Jinja templates for arguments
-            # "{{ dag_run.conf.s3_glob }}",
-            # "{{ dag_run.conf.product }}"
+            # "s3://dea-public-data/cemp_insar/insar/displacement/alos//**/*.yaml",
+            # "cemp_insar_alos_displacement",
+            # Jinja templates for arguments
+            "{{ dag_run.conf.s3_glob }}",
+            "{{ dag_run.conf.product }}"
         ],
         labels={"step": "s3-to-rds"},
         name="datacube-index",
@@ -94,7 +99,7 @@ with dag:
 
     UPDATE_RANGES = KubernetesPodOperator(
         namespace="processing",
-        image="opendatacube/ows:0.13.3-unstable.5.g86139b5",
+        image=OWS_IMAGE,
         cmds=["datacube-ows-update"],
         arguments=["--help"],
         labels={"step": "ows"},
@@ -105,7 +110,7 @@ with dag:
 
     SUMMARY = KubernetesPodOperator(
         namespace="processing",
-        image="opendatacube/dashboard:2.1.6",
+        image=EXPLORER_IMAGE,
         cmds=["cubedash-gen"],
         arguments=["--help"],
         labels={"step": "explorer"},
