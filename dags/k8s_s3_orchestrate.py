@@ -3,6 +3,7 @@
 
 DAG to periodically/one-shot update explorer and ows schemas in RDS
 after a given Dataset has been indexed from S3.
+
 - Run Explorer summaries
 - Run ows update ranges for NRT products
 - Run ows update ranges for NRT multi-products
@@ -12,14 +13,12 @@ and configuration installed.
 
 The DAG has to be parameterized with S3_Glob and Target product as below.
 
-```
 
-{
-    "s3_glob": "s3://dea-public-data/cemp_insar/insar/displacement/alos//**/*.yaml",
-    "product": "cemp_insar_alos_displacement"
-}
+    {
+        "s3_glob": "s3://dea-public-data/cemp_insar/insar/displacement/alos//**/*.yaml",
+        "product": "cemp_insar_alos_displacement"
+    }
 
-```
 """
 from datetime import datetime, timedelta
 
