@@ -12,11 +12,13 @@ and configuration installed.
 
 The DAG has to be parameterized with S3_Glob and Target product as below.
 
-```javascript
+```
+
 {
     "s3_glob": "s3://dea-public-data/cemp_insar/insar/displacement/alos//**/*.yaml",
     "product": "cemp_insar_alos_displacement"
 }
+
 ```
 """
 from datetime import datetime, timedelta
