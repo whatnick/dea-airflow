@@ -1,19 +1,23 @@
-"""DAG to periodically/one-shot update explorer and ows schemas in RDS
+"""
+# S3 to Datacube Indexing
+
+DAG to periodically/one-shot update explorer and ows schemas in RDS
 after a given Dataset has been indexed from S3.
 - Run Explorer summaries
 - Run ows update ranges for NRT products
 - Run ows update ranges for NRT multi-products
 
 This DAG uses k8s executors and pre-existing pods in cluster with relevant tooling
-and configuration installed
+and configuration installed.
 
-set start_date to something real, not datetime.utcnow() because that'll break things
+The DAG has to be parameterized with S3_Glob and Target product as below.
 
-for setting upstream and downstream, use
-start >> passing
-start >> failing
-
-You can use `with dag: ` as a context manager, and not have to manually pass it as an argument
+```javascript
+{
+    "s3_glob": "s3://dea-public-data/cemp_insar/insar/displacement/alos//**/*.yaml",
+    "product": "cemp_insar_alos_displacement"
+}
+```
 """
 from datetime import datetime, timedelta
 
@@ -52,6 +56,7 @@ EXPLORER_IMAGE = "opendatacube/dashboard:2.1.6"
 
 dag = DAG(
     "k8s_s3_orchestrate",
+    doc_md=__doc__,
     default_args=DEFAULT_ARGS,
     schedule_interval=None,
     catchup=False,

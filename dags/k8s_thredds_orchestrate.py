@@ -1,19 +1,29 @@
-"""DAG to periodically/one-shot update explorer and ows schemas in RDS
+"""
+# Thredds to Datacube Indexing
+
+DAG to periodically/one-shot update explorer and ows schemas in RDS
 after a given Dataset has been indexed from Thredds
 - Run Explorer summaries
 - Run ows update ranges for ARD products
 - Run ows update ranges for ARD multi-products
 
 This DAG uses k8s executors and fresh pods in cluster with relevant tooling
-and configuration installed
+and configuration installed.
 
-set start_date to something real, not datetime.utcnow() because that'll break things
+The DAG has to be parameterized with Thredds catalog root and Target products as below.
+The lineage indexing strategy also has to be passed in.
 
-for setting upstream and downstream, use
-start >> passing
-start >> failing
+```javascript
+{
+    "params" : "--auto-add-lineage",
+    "thredds_catalog": "http://dapds00.nci.org.au/thredds/catalog/if87/2018-11-29/",
+    "products": ["s2a_ard_granule",
+                "s2a_level1c_granule",
+                "s2b_ard_granule",
+                "s2b_level1c_granule"]
+}
+```
 
-You can use `with dag: ` as a context manager, and not have to manually pass it as an argument
 """
 from datetime import datetime, timedelta
 
@@ -51,6 +61,7 @@ EXPLORER_IMAGE = "opendatacube/dashboard:2.1.6"
 
 dag = DAG(
     "k8s_thredds_orchestrate",
+    doc_md=__doc__,
     default_args=DEFAULT_ARGS,
     schedule_interval=None,
     catchup=False,
