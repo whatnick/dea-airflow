@@ -51,8 +51,8 @@ DEFAULT_ARGS = {
     ],
 }
 
-INDEXER_IMAGE = "opendatacube/datacube-index:v0.0.3"
-OWS_IMAGE = "opendatacube/ows:0.13.3-unstable.5.g86139b5"
+INDEXER_IMAGE = "opendatacube/datacube-index:v0.0.4"
+OWS_IMAGE = "opendatacube/ows:0.14.1"
 EXPLORER_IMAGE = "opendatacube/dashboard:2.1.6"
 
 dag = DAG(

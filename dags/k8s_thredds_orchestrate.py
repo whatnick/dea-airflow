@@ -18,10 +18,7 @@ The lineage indexing strategy also has to be passed in.
     {
         "params" : "--auto-add-lineage",
         "thredds_catalog": "http://dapds00.nci.org.au/thredds/catalog/if87/2018-11-29/",
-        "products": ["s2a_ard_granule",
-                    "s2a_level1c_granule",
-                    "s2b_ard_granule",
-                    "s2b_level1c_granule"]
+        "products": "s2a_ard_granule s2a_level1c_granule s2b_ard_granule" s2b_level1c_granule"
     }
 
 
@@ -56,8 +53,8 @@ DEFAULT_ARGS = {
     ],
 }
 
-INDEXER_IMAGE = "opendatacube/datacube-index:v0.0.3"
-OWS_IMAGE = "opendatacube/ows:0.13.3-unstable.5.g86139b5"
+INDEXER_IMAGE = "opendatacube/datacube-index:v0.0.4"
+OWS_IMAGE = "opendatacube/ows:0.14.1"
 EXPLORER_IMAGE = "opendatacube/dashboard:2.1.6"
 
 dag = DAG(
