@@ -4,6 +4,7 @@ from datetime import datetime
 from airflow.contrib.operators.ssh_operator import SSHOperator
 from airflow.operators.bash_operator import BashOperator
 from airflow.operators.dummy_operator import DummyOperator
+from airflow.operators.email_operator import EmailOperator
 from airflow.operators.python_operator import ShortCircuitOperator
 
 from operators.ssh_operators import TemplateToSFTPOperator, ShortCircuitSSHOperator
@@ -13,7 +14,8 @@ default_args = {
 
     'depends_on_past': False,
     'start_date': datetime(2020, 2, 1),
-    'email': ['damien.ayers@ga.gov.au'],
+    'email': ['damien.ayers@ga.gov.au', 'damien@omad.net'],
+    'email_on_failure': True,
 }
 
 dag = DAG(
@@ -51,6 +53,13 @@ with dag:
     )
     failing_task >> should_be_skipped
     passing_task >> should_be_run
+
+    send_email = EmailOperator(
+        task_id='send_email',
+        to='damien@omad.net',
+        subject='New dea/unstable Module',
+        html_content='Successfully built new dea/unstable module on the NCI',
+    )
     # foo = BashOperator(
     #     task_id='foo',
     #     bash_command="echo Input is: {{ dag_run.conf.hello }}"
