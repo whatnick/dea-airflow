@@ -59,6 +59,7 @@ with dag:
         to='damien@omad.net',
         subject='New dea/unstable Module',
         html_content='Successfully built new dea/unstable module on the NCI',
+        mime_charset='utf-8',
     )
     # foo = BashOperator(
     #     task_id='foo',
