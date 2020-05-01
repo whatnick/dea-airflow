@@ -77,7 +77,7 @@ dag = DAG(
     schedule_interval=None,
     template_searchpath='templates/',
     max_active_runs=1,
-    tags=['nci'],
+    tags=['nci', 'landsat_c2'],
 )
 
 with dag:

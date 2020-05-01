@@ -51,7 +51,8 @@ ingest_dag = DAG(
     default_args=default_args,
     catchup=False,
     schedule_interval=None,
-    template_searchpath='templates/'
+    template_searchpath='templates/',
+    tags=['nci', 'landsat_c2'],
 )
 
 with ingest_dag:
