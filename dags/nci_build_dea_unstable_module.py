@@ -61,4 +61,4 @@ with dag:
         html_content='Successfully built new dea/unstable module on the NCI',
     )
 
-    build_env_task >> [post_to_slack, send_email]
+    build_env_task >> [send_email]
