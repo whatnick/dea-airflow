@@ -2,14 +2,12 @@
 # Rebuild `dea/unstable` module on the NCI
 
 """
-from airflow import DAG
-from airflow.contrib.operators.ssh_operator import SSHOperator
 from datetime import datetime, timedelta
 
-from airflow.operators.email_operator import EmailOperator
-from airflow.operators.slack_operator import SlackAPIOperator, SlackAPIPostOperator
-
 import pendulum
+from airflow import DAG
+from airflow.contrib.operators.ssh_operator import SSHOperator
+from airflow.operators.email_operator import EmailOperator
 
 local_tz = pendulum.timezone("Australia/Canberra")
 
@@ -46,15 +44,15 @@ with dag:
         """,
     )
 
-    post_to_slack = SlackAPIPostOperator(
-        task_id='post_to_slack',
-        slack_conn_id='',
-        channel='#dea-beginners',
-        username='airflow-bot',
-        text='Successfully built new dea/unstable module on the NCI',
-        icon_url='',
-
-    )
+    # post_to_slack = SlackAPIPostOperator(
+    #     task_id='post_to_slack',
+    #     slack_conn_id='',
+    #     channel='#dea-beginners',
+    #     username='airflow-bot',
+    #     text='Successfully built new dea/unstable module on the NCI',
+    #     icon_url='',
+    #
+    # )
 
     send_email = EmailOperator(
         task_id='send_email',
