@@ -32,7 +32,7 @@ with dag:
         task_id=f'build_dea_unstable_module',
         ssh_conn_id='lpgs_gadi',
         command="""
-        cd ~/dea-orchestration/raijin_scripts/deploy
+        cd ~/dea-orchestration/nci_environment
         git reset --hard
         git pull
         git status
