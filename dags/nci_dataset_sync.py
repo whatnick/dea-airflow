@@ -77,7 +77,7 @@ with DAG('nci_dataset_sync',
          default_args=default_args,
          catchup=False,
          schedule_interval=None,
-         template_searchpath='templates/',
+         default_view='graph',
          tags=['nci', 'landsat_c2'],
          ) as dag:
     for product in synced_products:
