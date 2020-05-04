@@ -32,9 +32,10 @@ with dag:
         task_id=f'build_dea_unstable_module',
         ssh_conn_id='lpgs_gadi',
         command="""
-        cd ~/dea-orchestration/nci_environment
+        cd ~/dea-orchestration/
         git reset --hard
         git pull
+        cd ~/dea-orchestration/nci_environment
         git status
         module load python3/3.7.4
         pip3 install --user pyyaml jinja2
