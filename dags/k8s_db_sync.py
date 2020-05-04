@@ -17,39 +17,48 @@ from airflow.operators.dummy_operator import DummyOperator
 
 DEFAULT_ARGS = {
     "owner": "Tisham Dhar",
-    'depends_on_past': False,
-    'start_date': datetime(2020, 2, 1),
-    'email': ["tisham.dhar@ga.gov.au"],
-    'email_on_failure': False,
-    'email_on_retry': False,
-    'retries': 1,
-    'retry_delay': timedelta(minutes=5),
+    "depends_on_past": False,
+    "start_date": datetime(2020, 2, 1),
+    "email": ["tisham.dhar@ga.gov.au"],
+    "email_on_failure": False,
+    "email_on_retry": False,
+    "retries": 1,
+    "retry_delay": timedelta(minutes=5),
     # 'queue': 'bash_queue',
     # 'pool': 'backfill',
     # 'priority_weight': 10,
     # 'end_date': datetime(2016, 1, 1),
 }
 
-dag = DAG('ssh_k8s_db_sync',
-          doc_md=__doc__,
-          default_args=DEFAULT_ARGS,
-          catchup=False,
-          concurrency=1,
-          schedule_interval=None)
+dag = DAG(
+    "k8s_db_sync",
+    doc_md=__doc__,
+    default_args=DEFAULT_ARGS,
+    catchup=False,
+    concurrency=1,
+    tags=["k8s"],
+    schedule_interval=None,
+)
 
 with dag:
-  START = DummyOperator(task_id="nci_rds_sync")
-  RESTORE_RDS_S3 = DummyOperator(task_id="restore_rds_s3")
-  SUMMARIZE_DATACUBE = DummyOperator(task_id="summarize_datacube")
-  AUDIT_EXPLORER = DummyOperator(task_id="audit_explorer")
-  ETL_RESTO = DummyOperator(task_id="etl_resto")
-  AUDIT_RESTO = DummyOperator(task_id="audit_resto")
-  COMPLETE = DummyOperator(task_id="all_done")
+    START = DummyOperator(task_id="nci_rds_sync")
+    # Download PostgreSQL backup from S3 to within K8S storage
+    RESTORE_RDS_S3 = DummyOperator(task_id="restore_rds_s3")
+    # Restore to a local db and link it to explorer codebase and run summary
+    SUMMARIZE_DATACUBE = DummyOperator(task_id="summarize_datacube")
+    # Get API responses from Explorer and ensure product count summaries match
+    AUDIT_EXPLORER = DummyOperator(task_id="audit_explorer")
+    # Transfer Data via Explorer STAC API to Resto PostgreSQL DB
+    ETL_RESTO = DummyOperator(task_id="etl_resto")
+    # Ensure RESTO gives expected results
+    AUDIT_RESTO = DummyOperator(task_id="audit_resto")
+    COMPLETE = DummyOperator(task_id="all_done")
 
-  START >> RESTORE_RDS_S3
-  RESTORE_RDS_S3 >> SUMMARIZE_DATACUBE
-  SUMMARIZE_DATACUBE >> AUDIT_EXPLORER
-  RESTORE_RDS_S3 >> ETL_RESTO
-  ETL_RESTO >> AUDIT_RESTO
-  AUDIT_EXPLORER >> COMPLETE
-  AUDIT_RESTO >> COMPLETE
+    START >> RESTORE_RDS_S3
+    RESTORE_RDS_S3 >> SUMMARIZE_DATACUBE
+    SUMMARIZE_DATACUBE >> AUDIT_EXPLORER
+    RESTORE_RDS_S3 >> ETL_RESTO
+    ETL_RESTO >> AUDIT_RESTO
+    AUDIT_EXPLORER >> COMPLETE
+    AUDIT_RESTO >> COMPLETE
+
