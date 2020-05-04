@@ -12,6 +12,8 @@ default_args = {
     'retries': 1,
     'retry_delay': timedelta(minutes=1),
     'timeout': 1200,  # For running SSH Commands
+    'email_on_failure': True,
+    'email': 'damien.ayers@ga.gov.au',
 }
 
 dag = DAG(

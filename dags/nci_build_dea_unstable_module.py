@@ -17,6 +17,8 @@ default_args = {
     'retries': 1,
     'retry_delay': timedelta(minutes=10),
     'timeout': 1200,  # For running SSH Commands
+    'email_on_failure': True,
+    'email': 'damien.ayers@ga.gov.au',
 }
 
 dag = DAG(
@@ -60,6 +62,7 @@ with dag:
         to='damien@omad.net',
         subject='New dea/unstable Module',
         html_content='Successfully built new dea/unstable module on the NCI',
+        mime_charset='utf-8',
     )
 
     build_env_task >> [send_email]

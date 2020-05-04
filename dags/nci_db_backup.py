@@ -22,6 +22,8 @@ default_args = {
     'start_date': datetime(2020, 5, 1, 1, tzinfo=local_tz),
     'timeout': 60*60*2,  # For running SSH Commands
     'ssh_conn_id': 'lpgs_gadi',
+    'email_on_failure': True,
+    'email': 'damien.ayers@ga.gov.au',
 }
 
 with DAG('nci_db_backup',
@@ -72,7 +74,7 @@ with DAG('nci_db_backup',
     upload_to_s3 = SSHOperator(
         task_id='upload_to_s3',
         params={
-            'aws_conn': aws_conn,
+            'aws_conn': aws_conn.get_credentials(),
         },
         command=COMMON + dedent('''
             export AWS_ACCESS_KEY_ID={{params.aws_conn.access_key}}
