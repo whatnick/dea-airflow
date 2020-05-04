@@ -31,6 +31,7 @@ with DAG('nci_db_backup',
          catchup=False,
          schedule_interval="@daily",
          concurrency=1,
+         tags=['nci'],
          ) as dag:
 
     COMMON = dedent('''
