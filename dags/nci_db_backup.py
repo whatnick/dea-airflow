@@ -22,6 +22,7 @@ default_args = {
     'start_date': datetime(2020, 5, 1, 1, tzinfo=local_tz),
     'timeout': 60*60*2,  # For running SSH Commands
     'ssh_conn_id': 'lpgs_gadi',
+    'remote_host': 'gadi-dm.nci.org.au',
     'email_on_failure': True,
     'email': 'damien.ayers@ga.gov.au',
 }
@@ -35,6 +36,7 @@ with DAG('nci_db_backup',
          ) as dag:
 
     COMMON = dedent('''
+        set -e
         # Load dea module to ensure that pg_dump version and the server version
         # matches, when the cronjob is run from an ec2 instance
         module use /g/data/v10/public/modules/modulefiles
