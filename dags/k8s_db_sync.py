@@ -60,7 +60,8 @@ with dag:
     S3_BACKUP_SENSE = S3KeySensor(
         task_id='s3_backup_sense',
         poke_interval=60*30,
-        bucket_key=f"s3://nci-db-dump/prod/{file_prefix}-datacube.pgdump"
+        bucket_key=f"s3://nci-db-dump/prod/{file_prefix}-datacube.pgdump",
+        aws_conn_id="aws_nci_db_backup"
     )
     ANNOUNCE_BACKUP_ARRIVAL = PythonOperator(
         task_id="announce_backup_arrival",
