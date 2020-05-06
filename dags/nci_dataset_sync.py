@@ -61,8 +61,7 @@ default_args = {
     'depends_on_past': False,
     'start_date': datetime(2020, 3, 4),
     'email': ['damien.ayers@ga.gov.au'],
-    'email_on_failure': False,
-    'email_on_retry': False,
+    'email_on_failure': True,
     'retries': 0,
     'retry_delay': timedelta(minutes=5),
     'params': {
