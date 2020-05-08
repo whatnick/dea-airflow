@@ -36,8 +36,9 @@ class PBSJobSensor(SSHRunMixin, BaseSensorOperator):
                  pbs_job_id: str = None,
                  poke_interval: int = 5 * 60,
                  mode='reschedule',
+                 timeout: int = 24 * 60 * 60,
                  *args, **kwargs):
-        super().__init__(mode=mode, poke_interval=poke_interval, *args, **kwargs)
+        super().__init__(mode=mode, poke_interval=poke_interval, timeout=timeout, *args, **kwargs)
         self.log.info('Inside PBSJobSensor Init Function')
 
         self.pbs_job_id = maybe_decode_base64(pbs_job_id)
