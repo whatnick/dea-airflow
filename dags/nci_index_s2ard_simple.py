@@ -23,7 +23,7 @@ default_args = {
     }
 }
 
-with DAG('nci_sync_s2ard',
+with DAG('nci_index_s2ard',
          default_args=default_args,
          catchup=True,
          schedule_interval=timedelta(days=7),
